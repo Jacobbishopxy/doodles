@@ -1,1 +1,3 @@
 # doodles
+
+`cabal build all`
