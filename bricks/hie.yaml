@@ -1,0 +1,4 @@
+cradle:
+  cabal:
+    - path: "demos/HelloWorld.hs"
+      component: "bricksDemos:exe:hello-world"
