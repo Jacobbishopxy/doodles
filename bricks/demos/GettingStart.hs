@@ -60,8 +60,38 @@ app =
       -- 该函数是一个运行在初始应用状态上的句柄行为。该函数仅执行一次，即应用启动时。该函数一般用于初始的滚动视图请求
       -- 或者修改 Vty 环境。多数情况下使用 `return ()` 即可。
       appStartEvent = return (),
-      -- TODO
+      -- `appChooseCursor` 光标放置
+      -- 一个 `Widget` 的渲染过程可能会返回光标该如何放置的信息。例如一个文本编辑器需要报告光标的位置。然而 `Widget`
+      -- 有可能会是一个很多光标放置组件的组合，我们需要一种方式选择哪个组件需要报告。
+      --
+      -- 为了确认是哪个光标被使用，或者哪个都不选择，我们需要设置 `App` 类型的 `appChooseCursor` 函数：
+      -- `appChooseCursor :: s -> [CursorLocation n] -> Maybe (CursorLocation n)`
+      --
+      -- 事件循环 event loop 通过渲染接口，收集由渲染过程产生的 `Brick.Types.CursorLocation` 值，并传递当前应用状态
+      -- 给该函数。
+      --
+      -- 很多 widgets 在渲染过程中可以请求光标的放置，不过具体选择哪一个则是由应用决定的。由于只能选择展示至多一个光标在
+      -- 终端上，我们需要决定具体展示的位置。一种办法是查看包含在 `cursorLocationName` 字段中的资源名称，关联了光标位置的
+      -- 名称将会通过 `Brick.Widgets.Core.showCursor` 用于请求光标位置。
+      --
+      -- `Brick.Main` 提供了若干函数方便光标的选择：
+      -- 1. `neverShowCursor`：永不展示
+      -- 2. `showFirstCursor`：总是展示第一个给定的光标请求；方便仅有一个光标放置 widget 的应用
+      -- 3. `showCursorNamed`：展示指定资源名称的光标，或是在没有任何名称被请求关联时不展示光标
+      --
+      -- 资源名称 resource names
+      -- 上述资源名称用于描述光标位置，它们同样可以用于命名其它资源：
+      -- 1. viewports
+      -- 2. rendering extents
+      -- 3. mouse events
       appChooseCursor = const . const Nothing,
+      -- `appAttrMap` 管理属性
+      -- `brick` 中使用 `appAttrMap` 将属性分配给接口的元素。在绘制 widget（例如 red-on-black text）时并非指定特定的属性，
+      -- 而是指定一个属性名称，它是一个抽象的名称，例如 "keyword" 或 "e-mail address"。接着提供属性映射将这些属性名称映射至
+      -- 确切的属性。该方法允许我们：
+      -- 1. 运行时修改属性，允许用户任意更改应用程序中任何元素的属性，而无需强制构建特殊机制使其可配置
+      -- 2. 编写例程用以从磁盘中加载已保存的属性映射
+      -- 3. 为第三方组件提供模块化属性行为，我们不希望为了改变属性而重新编译第三方代码，也不希望将属性参数传递给第三方绘图函数
       appAttrMap = const $ attrMap defAttr []
     }
 
