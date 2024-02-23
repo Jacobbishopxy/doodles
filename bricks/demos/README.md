@@ -12,4 +12,7 @@ cabal run getting-start
 
 # AttrDemo
 cabal run attr-demo
+
+# BorderDemo
+cabal run border-demo
 ```

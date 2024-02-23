@@ -4,7 +4,7 @@
 -- file: AttrDemo.hs
 -- author: Jacob Xie
 -- date: 2024/02/06 17:57:03 Tuesday
--- brief:
+-- brief: text & colors
 
 module Main where
 

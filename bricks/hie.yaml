@@ -8,3 +8,6 @@ cradle:
 
     - path: "demos/AttrDemo.hs"
       component: "bricksDemos:exe:attr-demo"
+
+    - path: "demos/BorderDemo.hs"
+      component: "bricksDemos:exe:border-demo"
