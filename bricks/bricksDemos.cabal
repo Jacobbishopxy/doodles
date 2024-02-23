@@ -58,3 +58,18 @@ executable border-demo
     , brick
     , text
     , vty
+
+executable custom-event-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          CustomEventDemo.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base           ^>=4.17.2.1
+    , brick
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , text
+    , vty

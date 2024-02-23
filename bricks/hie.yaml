@@ -11,3 +11,6 @@ cradle:
 
     - path: "demos/BorderDemo.hs"
       component: "bricksDemos:exe:border-demo"
+
+    - path: "demos/CustomEventDemo.hs"
+      component: "bricksDemos:exe:custom-event-demo"
