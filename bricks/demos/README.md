@@ -16,6 +16,9 @@ cabal run attr-demo
 # BorderDemo
 cabal run border-demo
 
+# DynamicBorderDemo
+cabal run dynamic-border-demo
+
 # CustomEventDemo
 cabal run custom-event-demo
 ```

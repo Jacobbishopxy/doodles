@@ -59,6 +59,19 @@ executable border-demo
     , text
     , vty
 
+executable dynamic-border-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          DynamicBorderDemo.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base       ^>=4.17.2.1
+    , brick
+    , microlens
+    , text
+    , vty
+
 executable custom-event-demo
   import:           warnings
   default-language: GHC2021
