@@ -35,3 +35,16 @@ executable getting-start
     , base   ^>=4.17.2.1
     , brick
     , vty
+
+executable attr-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          AttrDemo.hs
+
+  -- Brick 应用必须使用 GHC 的 -threaded 选项才能进行编译
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base   ^>=4.17.2.1
+    , brick
+    , vty
