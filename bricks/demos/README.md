@@ -21,4 +21,7 @@ cabal run dynamic-border-demo
 
 # CustomEventDemo
 cabal run custom-event-demo
+
+# ListDemo
+cabal run list-demo
 ```

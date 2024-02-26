@@ -8,6 +8,6 @@ check-bounds:
 build-all:
 	cabal build all
 
-update-hie:
+gen-hie:
 	cd bricks && gen-hie > hie.yaml
 

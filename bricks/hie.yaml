@@ -17,3 +17,6 @@ cradle:
 
     - path: "demos/CustomEventDemo.hs"
       component: "bricksDemos:exe:custom-event-demo"
+
+    - path: "demos/ListDemo.hs"
+      component: "bricksDemos:exe:list-demo"
