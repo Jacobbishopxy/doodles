@@ -20,3 +20,6 @@ cradle:
 
     - path: "demos/ListDemo.hs"
       component: "bricksDemos:exe:list-demo"
+
+    - path: "demos/EditDemo.hs"
+      component: "bricksDemos:exe:edit-demo"
