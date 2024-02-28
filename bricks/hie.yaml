@@ -23,3 +23,6 @@ cradle:
 
     - path: "demos/EditDemo.hs"
       component: "bricksDemos:exe:edit-demo"
+
+    - path: "demos/TableDemo.hs"
+      component: "bricksDemos:exe:table-demo"
