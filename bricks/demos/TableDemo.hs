@@ -9,8 +9,28 @@
 module Main where
 
 import Brick
+  ( Padding (Pad),
+    Widget,
+    padLeft,
+    simpleMain,
+    txt,
+    (<+>),
+    (<=>),
+  )
 import Brick.Widgets.Center (center)
 import Brick.Widgets.Table
+  ( ColumnAlignment (AlignCenter),
+    Table,
+    alignCenter,
+    alignMiddle,
+    alignRight,
+    columnBorders,
+    renderTable,
+    rowBorders,
+    setDefaultColAlignment,
+    surroundingBorder,
+    table,
+  )
 
 ui :: Widget ()
 ui =

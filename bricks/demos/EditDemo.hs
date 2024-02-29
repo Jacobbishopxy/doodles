@@ -18,9 +18,9 @@ import Brick.Util (on)
 import Brick.Widgets.Center qualified as C
 import Brick.Widgets.Edit qualified as E
 import Graphics.Vty qualified as V
-import Lens.Micro
-import Lens.Micro.Mtl
-import Lens.Micro.TH
+import Lens.Micro ((^.))
+import Lens.Micro.Mtl (use, zoom, (%=))
+import Lens.Micro.TH (makeLenses)
 
 data Name = Edit1 | Edit2 deriving (Ord, Show, Eq)
 

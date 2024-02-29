@@ -131,3 +131,16 @@ executable table-demo
     , brick
     , text
     , vty
+
+executable file-browser-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          FileBrowserDemo.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base   ^>=4.17.2.1
+    , brick
+    , mtl
+    , text
+    , vty

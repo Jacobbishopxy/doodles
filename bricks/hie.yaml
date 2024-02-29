@@ -26,3 +26,6 @@ cradle:
 
     - path: "demos/TableDemo.hs"
       component: "bricksDemos:exe:table-demo"
+
+    - path: "demos/FileBrowserDemo.hs"
+      component: "bricksDemos:exe:file-browser-demo"
