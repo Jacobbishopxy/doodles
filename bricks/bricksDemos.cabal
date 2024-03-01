@@ -21,7 +21,7 @@ executable hello-world
   -- Brick 应用必须使用 GHC 的 -threaded 选项才能进行编译
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base   ^>=4.17.2.1
+    , base
     , brick
     , vty
 
@@ -32,7 +32,7 @@ executable getting-start
   main-is:          GettingStart.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base   ^>=4.17.2.1
+    , base
     , brick
     , vty
 
@@ -43,7 +43,7 @@ executable attr-demo
   main-is:          AttrDemo.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base   ^>=4.17.2.1
+    , base
     , brick
     , vty
 
@@ -54,7 +54,7 @@ executable border-demo
   main-is:          BorderDemo.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base   ^>=4.17.2.1
+    , base
     , brick
     , text
     , vty
@@ -66,7 +66,7 @@ executable dynamic-border-demo
   main-is:          DynamicBorderDemo.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base       ^>=4.17.2.1
+    , base
     , brick
     , microlens
     , text
@@ -79,7 +79,7 @@ executable custom-event-demo
   main-is:          CustomEventDemo.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base           ^>=4.17.2.1
+    , base
     , brick
     , microlens
     , microlens-mtl
@@ -94,7 +94,7 @@ executable list-demo
   main-is:          ListDemo.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base           ^>=4.17.2.1
+    , base
     , brick
     , microlens
     , microlens-mtl
@@ -110,7 +110,7 @@ executable edit-demo
   main-is:          EditDemo.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base           ^>=4.17.2.1
+    , base
     , brick
     , microlens
     , microlens-mtl
@@ -127,7 +127,7 @@ executable table-demo
   main-is:          TableDemo.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base   ^>=4.17.2.1
+    , base
     , brick
     , text
     , vty
@@ -139,7 +139,7 @@ executable file-browser-demo
   main-is:          FileBrowserDemo.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base   ^>=4.17.2.1
+    , base
     , brick
     , mtl
     , text
@@ -152,7 +152,7 @@ executable form-demo
   main-is:          FormDemo.hs
   ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    , base               ^>=4.17.2.1
+    , base
     , brick
     , microlens
     , microlens-th
