@@ -8,6 +8,10 @@ check-bounds:
 build-all:
 	cabal build all
 
-gen-hie:
+gen-hie-bricks:
 	cd bricks && gen-hie > hie.yaml
 
+gen-hie-misc:
+	cd misc && gen-hie > hie.yaml
+
+gen-hie: gen-hie-bricks gen-hie-misc

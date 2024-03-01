@@ -1,0 +1,7 @@
+cradle:
+  cabal:
+    - path: "src"
+      component: "lib:misc"
+
+    - path: "test/CronCsvReader.hs"
+      component: "misc:exe:cron-csv-reader"
