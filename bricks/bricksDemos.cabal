@@ -144,3 +144,18 @@ executable file-browser-demo
     , mtl
     , text
     , vty
+
+executable form-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          FormDemo.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base               ^>=4.17.2.1
+    , brick
+    , microlens
+    , microlens-th
+    , text
+    , vty
+    , vty-crossplatform
