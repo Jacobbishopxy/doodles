@@ -39,3 +39,17 @@ executable cron-csv-reader
     , cassava
     , text
     , vector
+
+executable dir-csv-reader
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          DirCsvReader.hs
+  build-depends:
+    , base
+    , bytestring
+    , cassava
+    , directory
+    , filepath
+    , text
+    , vector
