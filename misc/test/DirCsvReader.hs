@@ -13,17 +13,18 @@ import Data.Either (rights)
 import Data.List (isSuffixOf)
 import Data.Vector qualified as V
 import System.Directory
-import System.Directory.Internal.Prelude (getArgs)
+import System.Directory.Internal.Prelude (getArgs, toLower)
 import System.FilePath ((</>))
 
 data CronSchema = CronSchema
-  { dag :: String,
+  { idx :: Int,
+    dag :: String,
     name :: String,
     sleeper :: String,
     input :: String,
     cmd :: String,
     output :: String,
-    activate :: String,
+    activate :: Bool,
     fPath :: String
   }
   deriving (Show)
@@ -39,15 +40,18 @@ instance FromNamedRecord CronSchema where
     activateVal <- m .: "activate"
     return
       CronSchema
-        { dag = dagVal,
+        { idx = 0,
+          dag = dagVal,
           name = nameVal,
           sleeper = sleeperVal,
           input = inputVal,
           cmd = cmdVal,
           output = outputVal,
-          activate = activateVal,
+          activate = parseBool activateVal,
           fPath = ""
         }
+    where
+      parseBool = (== "true") . map toLower
 
 -- discard header
 readCsv :: FilePath -> IO (Either String [CronSchema])
@@ -55,16 +59,17 @@ readCsv file = do
   csvData <- BL.readFile file
   return $ processCsvData <$> decodeByName csvData
   where
-    processCsvData d = V.toList $ V.map (upfPath file) (snd d)
-    upfPath p cs = cs {fPath = p}
+    processCsvData :: (Header, V.Vector CronSchema) -> [CronSchema]
+    processCsvData d = V.toList $ V.map (upfPath file) (V.indexed $ snd d)
+    upfPath p (i, r) = r {fPath = p, idx = i + 1}
 
 parseAllCsvFiles :: FilePath -> IO [CronSchema]
 parseAllCsvFiles dir = do
   files <- filter (".csv" `isSuffixOf`) <$> getAbsDirectoryContents dir
   parsedData <- mapM readCsv files
-  let successfulParses = rights parsedData
-  return $ concat successfulParses
+  return . concat $ rights parsedData
 
+-- turn relative filePath into filePath which based on execution location
 getAbsDirectoryContents :: FilePath -> IO [FilePath]
 getAbsDirectoryContents dir = map (dir </>) <$> getDirectoryContents dir
 
