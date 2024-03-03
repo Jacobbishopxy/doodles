@@ -15,10 +15,10 @@ where
 import qualified Data.ByteString.Lazy as BL
 import Data.Char (toLower)
 import Data.Csv (FromNamedRecord (..), Header, decodeByName, (.:))
-import Data.Either (rights)
+import Data.Either (fromRight, rights)
 import Data.List (isSuffixOf)
 import qualified Data.Vector as V
-import System.Directory (getDirectoryContents)
+import System.Directory (doesDirectoryExist, doesFileExist, getDirectoryContents)
 import System.FilePath ((</>))
 
 data CronSchema = CronSchema
@@ -68,9 +68,9 @@ readCsv file = do
     prc d = V.toList $ V.map (upc file) (V.indexed $ snd d)
     upc p (i, r) = r {fPath = p, idx = i + 1}
 
--- discard none CronSchema Csv
-searchAllCron :: FilePath -> IO [CronSchema]
-searchAllCron dir = do
+-- Given a directory, search all matched Csv files
+searchCronByDir :: FilePath -> IO [CronSchema]
+searchCronByDir dir = do
   files <- filter (".csv" `isSuffixOf`) <$> getAbsDirCtt dir
   parsedData <- mapM readCsv files
   return . concat $ rights parsedData
@@ -79,6 +79,24 @@ searchAllCron dir = do
     getAbsDirCtt :: FilePath -> IO [FilePath]
     getAbsDirCtt d = map (dir </>) <$> getDirectoryContents d
 
+-- Given a file, get `[CronSchema]`
+searchCronByFile :: FilePath -> IO [CronSchema]
+searchCronByFile file = do
+  fromRight [] <$> readCsv file
+
+----------------------------------------------------------------------------------------------------
+
+-- search dir/file, discard none CronSchema Csv
+searchAllCron :: FilePath -> IO [CronSchema]
+searchAllCron fp = do
+  isFile <- doesFileExist fp
+  isDir <- doesDirectoryExist fp
+  case (isFile, isDir) of
+    (True, False) -> searchCronByFile fp
+    (False, True) -> searchCronByDir fp
+    _ -> return []
+
+-- search multiple dirs/files
 searchAllCrons :: [FilePath] -> IO [CronSchema]
 searchAllCrons dirs = do
   ctts <- mapM searchAllCron dirs
