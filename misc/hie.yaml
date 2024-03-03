@@ -1,13 +1,16 @@
 cradle:
   cabal:
     - path: "src"
-      component: "lib:misc"
+      component: "lib:misclib"
 
     - path: "test/CronCsvReader.hs"
-      component: "misc:exe:cron-csv-reader"
+      component: "misclib:exe:cron-csv-reader"
 
     - path: "test/DirCsvReader.hs"
-      component: "misc:exe:dir-csv-reader"
+      component: "misclib:exe:dir-csv-reader"
 
     - path: "test/YamlReader.hs"
-      component: "misc:exe:yaml-reader"
+      component: "misclib:exe:yaml-reader"
+
+    - path: "test/YamlCsvReader.hs"
+      component: "misclib:exe:yaml-csv-reader"
