@@ -11,7 +11,7 @@ import Data.Aeson (FromJSON)
 import Data.Either (fromRight)
 import Data.Yaml qualified as Y
 import GHC.Generics (Generic)
-import MiscLib.CronSchema (searchAllCrons)
+import MiscLib.CronSchema (getAllCrons)
 import System.Environment (getArgs)
 
 data CronSettings = CronSettings
@@ -27,5 +27,5 @@ main = do
   args <- getArgs
   parsedContent <- Y.decodeFileEither (head args) :: IO (Either Y.ParseException CronSettings)
   let cs = fromRight (error "check Yaml") parsedContent
-  crons <- searchAllCrons $ lookupDirs cs
+  crons <- getAllCrons $ lookupDirs cs
   mapM_ print crons

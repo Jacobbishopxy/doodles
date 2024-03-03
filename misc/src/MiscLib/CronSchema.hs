@@ -7,8 +7,12 @@
 
 module MiscLib.CronSchema
   ( CronSchema,
-    searchAllCron,
-    searchAllCrons,
+    Conj,
+    SearchParam,
+    getAllCron,
+    getAllCrons,
+    genSearchParam,
+    searchCron,
   )
 where
 
@@ -16,11 +20,16 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Char (toLower)
 import Data.Csv (FromNamedRecord (..), Header, decodeByName, (.:))
 import Data.Either (fromRight, rights)
-import Data.List (isSuffixOf)
+import Data.List (isInfixOf, isSuffixOf)
 import qualified Data.Vector as V
 import System.Directory (doesDirectoryExist, doesFileExist, getDirectoryContents)
 import System.FilePath ((</>))
 
+----------------------------------------------------------------------------------------------------
+-- Adt
+----------------------------------------------------------------------------------------------------
+
+-- CronSchema
 data CronSchema = CronSchema
   { idx :: Int,
     dag :: String,
@@ -58,6 +67,54 @@ instance FromNamedRecord CronSchema where
     where
       parseBool = (== "true") . map toLower
 
+-- Conjunction
+data Conj = AND | OR deriving (Enum, Read)
+
+-- SearchParam
+data SearchParam = SearchParam
+  { searchFields :: [String],
+    searchConj :: Conj,
+    searchStr :: String
+  }
+
+----------------------------------------------------------------------------------------------------
+-- Fn
+----------------------------------------------------------------------------------------------------
+
+-- search dir/file, discard none CronSchema Csv
+getAllCron :: FilePath -> IO [CronSchema]
+getAllCron fp = do
+  isFile <- doesFileExist fp
+  isDir <- doesDirectoryExist fp
+  case (isFile, isDir) of
+    (True, False) -> searchCronByFile fp
+    (False, True) -> searchCronByDir fp
+    _ -> return []
+
+-- search multiple dirs/files
+getAllCrons :: [FilePath] -> IO [CronSchema]
+getAllCrons dirs = concat <$> mapM getAllCron dirs
+
+-- search `[CronSchema]` contents
+searchCron :: SearchParam -> [CronSchema] -> [CronSchema]
+searchCron sp = filter $ containsSubstring conj lookupStr . flip getCronStrings fields
+  where
+    fields = searchFields sp
+    conj = searchConj sp
+    lookupStr = searchStr sp
+
+----------------------------------------------------------------------------------------------------
+-- Helpers
+----------------------------------------------------------------------------------------------------
+
+genSearchParam :: [String] -> Conj -> String -> SearchParam
+genSearchParam f c s =
+  SearchParam
+    { searchFields = f,
+      searchConj = c,
+      searchStr = s
+    }
+
 -- discard header
 readCsv :: FilePath -> IO (Either String [CronSchema])
 readCsv file = do
@@ -81,23 +138,24 @@ searchCronByDir dir = do
 
 -- Given a file, get `[CronSchema]`
 searchCronByFile :: FilePath -> IO [CronSchema]
-searchCronByFile file = do
-  fromRight [] <$> readCsv file
+searchCronByFile file = fromRight [] <$> readCsv file
 
-----------------------------------------------------------------------------------------------------
+-- Get all strings by a field list
+getCronStrings :: CronSchema -> [String] -> [String]
+getCronStrings cron = map f
+  where
+    f "dag" = dag cron
+    f "name" = name cron
+    f "sleeper" = sleeper cron
+    f "input" = input cron
+    f "cmd" = cmd cron
+    f "output" = output cron
+    f _ = ""
 
--- search dir/file, discard none CronSchema Csv
-searchAllCron :: FilePath -> IO [CronSchema]
-searchAllCron fp = do
-  isFile <- doesFileExist fp
-  isDir <- doesDirectoryExist fp
-  case (isFile, isDir) of
-    (True, False) -> searchCronByFile fp
-    (False, True) -> searchCronByDir fp
-    _ -> return []
-
--- search multiple dirs/files
-searchAllCrons :: [FilePath] -> IO [CronSchema]
-searchAllCrons dirs = do
-  ctts <- mapM searchAllCron dirs
-  return $ concat ctts
+-- Check a list of string contain a substring
+containsSubstring :: Conj -> String -> [String] -> Bool
+containsSubstring conj lookupStr = f (lookupStr `isInfixOf`)
+  where
+    f = case conj of
+      AND -> all
+      OR -> any
