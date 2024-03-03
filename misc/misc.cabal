@@ -20,11 +20,16 @@ common warnings
 
 library
   import:           warnings
-  exposed-modules:  MyLib
+  exposed-modules:  MiscLib
 
   -- other-modules:
   -- other-extensions:
-  build-depends:    base
+  build-depends:
+    , base
+    , containers
+    , dotenv
+    , split
+
   hs-source-dirs:   src
   default-language: Haskell2010
 
@@ -53,3 +58,13 @@ executable dir-csv-reader
     , filepath
     , text
     , vector
+
+executable yaml-reader
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          YamlReader.hs
+  build-depends:
+    , aeson
+    , base
+    , yaml

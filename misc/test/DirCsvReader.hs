@@ -8,12 +8,13 @@
 module Main where
 
 import Data.ByteString.Lazy qualified as BL
+import Data.Char (toLower)
 import Data.Csv
 import Data.Either (rights)
 import Data.List (isSuffixOf)
 import Data.Vector qualified as V
 import System.Directory
-import System.Directory.Internal.Prelude (getArgs, toLower)
+import System.Environment (getArgs)
 import System.FilePath ((</>))
 
 data CronSchema = CronSchema
