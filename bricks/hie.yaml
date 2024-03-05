@@ -32,3 +32,6 @@ cradle:
 
     - path: "demos/FormDemo.hs"
       component: "bricksDemos:exe:form-demo"
+
+    - path: "demos/TabularListDemo.hs"
+      component: "bricksDemos:exe:tabular-list-demo"
