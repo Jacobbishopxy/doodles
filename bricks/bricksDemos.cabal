@@ -176,3 +176,18 @@ executable tabular-list-demo
     , text
     , vector
     , vty
+
+executable progress-bar-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          ProgressBarDemo.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    , base
+    , brick
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , text
+    , vty

@@ -35,3 +35,6 @@ cradle:
 
     - path: "demos/TabularListDemo.hs"
       component: "bricksDemos:exe:tabular-list-demo"
+
+    - path: "demos/ProgressBarDemo.hs"
+      component: "bricksDemos:exe:progress-bar-demo"
