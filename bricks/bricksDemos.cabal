@@ -191,3 +191,20 @@ executable progress-bar-demo
     , microlens-th
     , text
     , vty
+
+executable mouse-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          MouseDemo.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , microlens      >=0.3.0.0
+    , microlens-mtl
+    , microlens-th
+    , mtl
+    , text
+    , text-zipper
+    , vty

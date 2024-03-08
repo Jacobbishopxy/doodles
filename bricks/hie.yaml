@@ -38,3 +38,6 @@ cradle:
 
     - path: "demos/ProgressBarDemo.hs"
       component: "bricksDemos:exe:progress-bar-demo"
+
+    - path: "demos/MouseDemo.hs"
+      component: "bricksDemos:exe:mouse-demo"
