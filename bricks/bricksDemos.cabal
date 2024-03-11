@@ -201,10 +201,23 @@ executable mouse-demo
   build-depends:
     , base
     , brick
-    , microlens      >=0.3.0.0
+    , microlens
     , microlens-mtl
     , microlens-th
     , mtl
     , text
     , text-zipper
+    , vty
+
+executable cropping-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          CroppingDemo.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , microlens
+    , text
     , vty

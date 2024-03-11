@@ -41,3 +41,6 @@ cradle:
 
     - path: "demos/MouseDemo.hs"
       component: "bricksDemos:exe:mouse-demo"
+
+    - path: "demos/CroppingDemo.hs"
+      component: "bricksDemos:exe:cropping-demo"
