@@ -221,3 +221,18 @@ executable cropping-demo
     , microlens
     , text
     , vty
+
+executable cache-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          CacheDemo.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , microlens
+    , microlens-th
+    , mtl
+    , text
+    , vty

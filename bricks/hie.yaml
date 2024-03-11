@@ -44,3 +44,6 @@ cradle:
 
     - path: "demos/CroppingDemo.hs"
       component: "bricksDemos:exe:cropping-demo"
+
+    - path: "demos/CacheDemo.hs"
+      component: "bricksDemos:exe:cache-demo"
