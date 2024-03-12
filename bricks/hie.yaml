@@ -47,3 +47,6 @@ cradle:
 
     - path: "demos/CacheDemo.hs"
       component: "bricksDemos:exe:cache-demo"
+
+    - path: "demos/TailDemo.hs"
+      component: "bricksDemos:exe:tail-demo"

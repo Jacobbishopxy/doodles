@@ -236,3 +236,19 @@ executable cache-demo
     , mtl
     , text
     , vty
+
+executable tail-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   demos
+  main-is:          TailDemo.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , microlens-mtl
+    , microlens-th
+    , random
+    , text
+    , vty
+    , vty-crossplatform
