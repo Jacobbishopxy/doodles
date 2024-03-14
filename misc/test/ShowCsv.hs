@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
+
+-- {-# LANGUAGE TemplateHaskell #-}
 
 -- file: ShowCsv.hs
 -- author: Jacob Xie
@@ -8,21 +9,24 @@
 
 module Main where
 
--- import Brick
--- import Brick.BChan
--- import Control.Concurrent
--- import Control.Monad (void)
--- import Data.Text qualified as T
--- import Graphics.Vty qualified as V
--- import Lens.Micro.Mtl
--- import Lens.Micro.TH
-
+import Brick
+import Brick.Widgets.Border qualified as B
+import Brick.Widgets.Center qualified as C
+import Brick.Widgets.List qualified as L
+import Control.Monad (void)
 import Data.ByteString.Lazy as BL
-import Data.Csv
+import Data.Csv (HasHeader (HasHeader), decode)
+import Data.Either (fromRight)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Vector qualified as Vec
+import Graphics.Vty qualified as V
+import Lens.Micro ((^.))
 import System.Environment (getArgs)
+
+----------------------------------------------------------------------------------------------------
+-- Csv
+----------------------------------------------------------------------------------------------------
 
 type CsvResult = Vec.Vector T.Text
 
@@ -35,13 +39,88 @@ readCsv file = do
 cvtRow :: Vec.Vector BL.ByteString -> T.Text
 cvtRow = T.intercalate "," . Prelude.map (TE.decodeUtf8 . BL.toStrict) . Vec.toList
 
+----------------------------------------------------------------------------------------------------
+-- TUI
+----------------------------------------------------------------------------------------------------
+
+drawUi :: (Show a) => L.List () a -> [Widget ()]
+drawUi l = [ui]
+  where
+    label = str "Item" <+> cur <+> str " of " <+> total
+    cur = case l ^. L.listSelectedL of
+      Nothing -> str "-"
+      Just i -> str $ show (i + 1)
+    total = str $ show $ Vec.length $ l ^. L.listElementsL
+    box =
+      B.borderWithLabel label $
+        hLimit 100 $
+          vLimit 50 $
+            L.renderList listDrawElement True l
+    ui =
+      C.vCenter $
+        vBox
+          [ C.hCenter box,
+            str " ",
+            C.hCenter $ str "Press Esc to exit."
+          ]
+
+appEvent :: BrickEvent () e -> EventM () (L.List () T.Text) ()
+appEvent (VtyEvent e) =
+  case e of
+    V.EvKey V.KEsc [] -> halt
+    ev -> L.handleListEvent ev
+appEvent _ = return ()
+
+listDrawElement :: (Show a) => Bool -> a -> Widget ()
+listDrawElement sel a =
+  let selStr s =
+        if sel
+          then withAttr customAttr (str $ "<" <> s <> ">")
+          else str s
+   in C.hCenter $ str "Item" <+> selStr (show a)
+
+customAttr :: AttrName
+customAttr = L.listSelectedAttr <> attrName "custom"
+
+theMap :: AttrMap
+theMap =
+  attrMap
+    V.defAttr
+    [ (L.listAttr, V.white `on` V.blue),
+      (L.listSelectedAttr, V.blue `on` V.white),
+      (customAttr, fg V.cyan)
+    ]
+
+theApp :: App (L.List () T.Text) e ()
+theApp =
+  App
+    { appDraw = drawUi,
+      appChooseCursor = showFirstCursor,
+      appHandleEvent = appEvent,
+      appStartEvent = return (),
+      appAttrMap = const theMap
+    }
+
+initialState :: CsvResult -> L.List () T.Text
+initialState a = L.list () a 1
+
+----------------------------------------------------------------------------------------------------
+-- Main
+----------------------------------------------------------------------------------------------------
+
 main :: IO ()
 main = do
   args <- getArgs
   let csvFile = Prelude.head args
   result <- readCsv csvFile
-  case result of
-    Left err -> putStrLn $ "Error: " ++ err
-    Right rawStrings -> do
-      putStrLn "Raw strings from CSV file:"
-      print rawStrings
+  -- case result of
+  --   Left err -> putStrLn $ "Error: " ++ err
+  --   Right rawStrings -> do
+  --     putStrLn "Raw strings from CSV file:"
+  --     print rawStrings
+
+  let ini = initialState $ fromRight Vec.empty result
+
+  void $ defaultMain theApp ini
+
+  putStrLn "done"

@@ -98,11 +98,13 @@ executable show-csv
   default-language: GHC2021
   hs-source-dirs:   test
   main-is:          ShowCsv.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
   build-depends:
     , base
     , brick
     , bytestring
     , cassava
+    , microlens
     , microlens-mtl
     , microlens-th
     , text
