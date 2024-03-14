@@ -51,7 +51,6 @@ executable cron-csv-reader
     , base
     , bytestring
     , cassava
-    , text
     , vector
 
 executable dir-csv-reader
@@ -93,3 +92,20 @@ executable yaml-csv-reader
     , misclib
     , text
     , yaml
+
+executable show-csv
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          ShowCsv.hs
+  build-depends:
+    , base
+    , brick
+    , bytestring
+    , cassava
+    , microlens-mtl
+    , microlens-th
+    , text
+    , vector
+    , vty
+    , vty-crossplatform

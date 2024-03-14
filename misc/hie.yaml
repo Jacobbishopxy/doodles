@@ -14,3 +14,6 @@ cradle:
 
     - path: "test/YamlCsvReader.hs"
       component: "misclib:exe:yaml-csv-reader"
+
+    - path: "test/ShowCsv.hs"
+      component: "misclib:exe:show-csv"

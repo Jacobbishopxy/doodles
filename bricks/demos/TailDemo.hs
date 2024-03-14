@@ -9,15 +9,39 @@
 module Main where
 
 import Brick
-import Brick.BChan
-import Brick.Widgets.Border
-import Control.Concurrent
+  ( App (..),
+    BrickEvent (AppEvent, VtyEvent),
+    Context (availHeight),
+    EventM,
+    Padding (Pad),
+    Result (image),
+    Size (Greedy),
+    Widget (Widget, render),
+    attrMap,
+    customMainWithDefaultVty,
+    fill,
+    getContext,
+    hBox,
+    hLimit,
+    halt,
+    neverShowCursor,
+    padBottom,
+    padRight,
+    raw,
+    str,
+    txtWrap,
+    vLimit,
+    (<=>),
+  )
+import Brick.BChan (BChan, newBChan, writeBChan)
+import Brick.Widgets.Border (border)
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (void)
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
-import Lens.Micro.Mtl
-import Lens.Micro.TH
-import System.Random
+import Lens.Micro.Mtl ((%=))
+import Lens.Micro.TH (makeLenses)
+import System.Random (randomRIO)
 
 data AppState = AppState
   { _textAreaHeight :: Int,
