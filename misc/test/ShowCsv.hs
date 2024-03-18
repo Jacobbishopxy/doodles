@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- {-# LANGUAGE TemplateHaskell #-}
-
 -- file: ShowCsv.hs
 -- author: Jacob Xie
 -- date: 2024/03/12 12:20:06 Tuesday
@@ -104,6 +102,14 @@ theApp =
 initialState :: CsvResult -> L.List () T.Text
 initialState a = L.list () a 1
 
+-- test
+printCsv :: Either String CsvResult -> IO ()
+printCsv csv = case csv of
+  Left err -> putStrLn $ "Error: " ++ err
+  Right rawStrings -> do
+    putStrLn "Raw strings from CSV file:"
+    print rawStrings
+
 ----------------------------------------------------------------------------------------------------
 -- Main
 ----------------------------------------------------------------------------------------------------
@@ -113,14 +119,9 @@ main = do
   args <- getArgs
   let csvFile = Prelude.head args
   result <- readCsv csvFile
-  -- case result of
-  --   Left err -> putStrLn $ "Error: " ++ err
-  --   Right rawStrings -> do
-  --     putStrLn "Raw strings from CSV file:"
-  --     print rawStrings
 
   let ini = initialState $ fromRight Vec.empty result
 
   void $ defaultMain theApp ini
 
-  putStrLn "done"
+  printCsv result
