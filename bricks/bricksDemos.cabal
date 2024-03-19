@@ -252,3 +252,27 @@ executable tail-demo
     , text
     , vty
     , vty-crossplatform
+
+executable bhoogle
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   bhoogle
+  main-is:          Main.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , bytestring
+    , containers
+    , directory
+    , filepath
+    , hoogle
+    , lens
+    , process
+    , protolude
+    , safe-exceptions
+    , text
+    , time
+    , vector
+    , vty
+    , vty-crossplatform

@@ -50,3 +50,6 @@ cradle:
 
     - path: "demos/TailDemo.hs"
       component: "bricksDemos:exe:tail-demo"
+
+    - path: "bhoogle/Main.hs"
+      component: "bricksDemos:exe:bhoogle"
