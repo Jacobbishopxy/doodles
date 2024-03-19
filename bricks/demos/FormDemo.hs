@@ -157,6 +157,11 @@ main = do
 
       f = setFieldValid False AgeField $ mkForm initialUserInfo
 
+  -- `customMain` 函数提供给用户控制 `vty` 库的初始化，以及操作 `brick` 处理自定义事件；同时，当
+  -- 用户需要自定类型时，它也是 `brick` 的入口。
+  --
+  -- 这里使用了由 `vty-crossplatform` 包所提供的 `mkVty`，用于 Unix 和 Windows 的构建支持。如果
+  -- 有倾向性，也可以直接使用 `vty-unix` 或 `vty-windows` 包。
   initialVty <- buildVty
   f' <- customMain initialVty buildVty Nothing app f
 

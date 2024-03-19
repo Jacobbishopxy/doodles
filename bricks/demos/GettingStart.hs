@@ -45,6 +45,8 @@ app =
       -- 返回值 `EventM` 是一个单子（monad），通过 `MonadState` typeclass 来访问与修改应用的状态。更推荐的方式则是
       -- 通过 `microlens-mtl` 库来更新准确的状态。
       --
+      -- 注：这里的 `name` 用于细分时间类型，详见 `FormDemo.hs`
+      --
       -- 默认情况下，当事件句柄完成后，Brick 调用 `appDraw` 重新绘制界面，并开始等待下一个事件。除此还有另外两种选项：
       -- 1. `Brick.Main.halt`：终止事件循环，其返回的状态传递给 `defaultMain` 或 `customMain`。
       -- 2. `Brick.Main.continueWithoutRedraw`：继续执行事件循环，直到另一个输入事件后再使用新状态进行绘制。
