@@ -17,3 +17,6 @@ cradle:
 
     - path: "test/ShowCsv.hs"
       component: "misclib:exe:show-csv"
+
+    - path: "test/Uppercase.hs"
+      component: "misclib:exe:uppercase"
