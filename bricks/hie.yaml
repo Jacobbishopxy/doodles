@@ -53,3 +53,6 @@ cradle:
 
     - path: "bhoogle/Main.hs"
       component: "bricksDemos:exe:bhoogle"
+
+    - path: "demos/DialogDemo.hs"
+      component: "bricksDemos:exe:dialog-demo"
