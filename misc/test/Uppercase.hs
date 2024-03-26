@@ -9,11 +9,9 @@
 module Main where
 
 import Brick
-import Brick qualified as T
 import Brick.Focus qualified as F
 import Brick.Widgets.Center
 import Brick.Widgets.Edit
-import Control.Monad (void)
 import Data.Char (toUpper)
 import Graphics.Vty qualified as V
 import Graphics.Vty.CrossPlatform (mkVty)
@@ -39,9 +37,8 @@ handleEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
 handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
   st <- get
   case F.focusGetCurrent $ st ^. focusRing of
-    Just EditInput -> do
-      let foo = map toUpper $ concat $ getEditContents $ st ^. inputText
-      outputText .= foo
+    Just EditInput ->
+      outputText .= map toUpper (concat $ getEditContents $ st ^. inputText)
     _ -> return ()
 handleEvent ev = do
   r <- use focusRing
@@ -78,7 +75,7 @@ theMap =
       (editFocusedAttr, V.black `on` V.yellow)
     ]
 
-appCursor :: State -> [T.CursorLocation Name] -> Maybe (T.CursorLocation Name)
+appCursor :: State -> [CursorLocation Name] -> Maybe (CursorLocation Name)
 appCursor = F.focusRingCursor (^. focusRing)
 
 theApp :: App State e Name
@@ -98,11 +95,7 @@ theApp =
 main :: IO ()
 main = do
   let vtyBuilder = mkVty V.defaultConfig
-
   initialVty <- vtyBuilder
 
-  void $ customMain initialVty vtyBuilder Nothing theApp initialState
-
--- st <- defaultMain theApp initialState
-
--- putStrLn $ unlines $ getEditContents $ st ^. inputText
+  st <- customMain initialVty vtyBuilder Nothing theApp initialState
+  putStrLn $ unlines $ getEditContents $ st ^. inputText

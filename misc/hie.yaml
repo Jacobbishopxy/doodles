@@ -20,3 +20,6 @@ cradle:
 
     - path: "test/Uppercase.hs"
       component: "misclib:exe:uppercase"
+
+    - path: "test/ShowCsvPro.hs"
+      component: "misclib:exe:show-csv-pro"

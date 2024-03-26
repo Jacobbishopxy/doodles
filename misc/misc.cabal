@@ -126,3 +126,22 @@ executable uppercase
     , microlens-th
     , vty
     , vty-crossplatform
+
+executable show-csv-pro
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          ShowCsvPro.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , bytestring
+    , cassava
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , text
+    , vector
+    , vty
+    , vty-crossplatform
