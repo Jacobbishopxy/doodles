@@ -12,7 +12,15 @@ import Brick
 import Brick.Focus qualified as F
 import Brick.Widgets.Border (borderWithLabel)
 import Brick.Widgets.Center (center, hCenter)
-import Brick.Widgets.Edit (Editor, editAttr, editFocusedAttr, editor, getEditContents, handleEditorEvent, renderEditor)
+import Brick.Widgets.Edit
+  ( Editor,
+    editAttr,
+    editFocusedAttr,
+    editor,
+    getEditContents,
+    handleEditorEvent,
+    renderEditor,
+  )
 import Brick.Widgets.List
 import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
@@ -25,7 +33,7 @@ import Data.Vector qualified as Vec
 import Graphics.Vty qualified as V
 import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro ((^.))
-import Lens.Micro.Mtl (use, (.=))
+import Lens.Micro.Mtl (use, (%=), (.=))
 import Lens.Micro.TH (makeLenses)
 
 ----------------------------------------------------------------------------------------------------
@@ -47,6 +55,7 @@ cvtRow = T.intercalate "," . Prelude.map (TE.decodeUtf8 . BL.toStrict) . Vec.toL
 -- Tui
 ----------------------------------------------------------------------------------------------------
 
+-- source name, representing different UI chunk
 data Name = EditInput | CsvBox deriving (Show, Eq, Ord)
 
 data AppState = AppState
@@ -56,6 +65,8 @@ data AppState = AppState
   }
 
 makeLenses ''AppState
+
+----------------------------------------------------------------------------------------------------
 
 drawUi :: AppState -> [Widget Name]
 drawUi st = [ui]
@@ -69,7 +80,7 @@ drawUi st = [ui]
           <=> box
           <=> str " "
           <=> str "Press Enter to show csv, Esc to quit."
-    label = str "Item" <+> cur <+> str " of " <+> total
+    label = str "Index " <+> cur <+> str " of " <+> total
     l = st ^. outputCsv
     box =
       borderWithLabel label $
@@ -82,7 +93,15 @@ drawUi st = [ui]
     total = str $ show $ Vec.length $ l ^. listElementsL
 
 listDrawCsv :: Bool -> T.Text -> Widget Name
-listDrawCsv _ a = hCenter $ str $ show a
+listDrawCsv sel a =
+  let selStr s =
+        if sel
+          then withAttr listCsvAttr (str $ "-> " <> s)
+          else str s
+   in hCenter $ selStr (show a)
+
+listCsvAttr :: AttrName
+listCsvAttr = listSelectedAttr <> attrName "custom"
 
 ----------------------------------------------------------------------------------------------------
 
@@ -97,12 +116,21 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
       let s = fromRight Vec.empty res
       outputCsv .= list CsvBox s 1
     _ -> return ()
-handleEvent ev = do
+-- switch between `Name`
+handleEvent (VtyEvent (V.EvKey (V.KChar '\t') [])) =
+  focusRing %= F.focusNext
+handleEvent (VtyEvent (V.EvKey V.KBackTab [])) =
+  focusRing %= F.focusPrev
+-- other actions
+handleEvent ev@(VtyEvent e) = do
   r <- use focusRing
   case F.focusGetCurrent r of
     Just EditInput -> zoom inputText $ handleEditorEvent ev
+    Just CsvBox -> zoom outputCsv $ handleListEventVi handleListEvent e
     _ -> return ()
+handleEvent _ = return ()
 
+--
 appCursor :: AppState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
 appCursor = F.focusRingCursor (^. focusRing)
 
@@ -121,7 +149,7 @@ app =
 initialState :: AppState
 initialState =
   AppState
-    { _focusRing = F.focusRing [EditInput],
+    { _focusRing = F.focusRing [EditInput, CsvBox], -- init focusRing on needed UI
       _inputText = editor EditInput Nothing "",
       _outputCsv = list CsvBox Vec.empty 1
     }
@@ -131,7 +159,10 @@ theMap =
   attrMap
     V.defAttr
     [ (editAttr, V.white `on` V.blue),
-      (editFocusedAttr, V.black `on` V.yellow)
+      (editFocusedAttr, V.black `on` V.yellow),
+      (listAttr, V.white `on` V.blue),
+      (listSelectedAttr, V.blue `on` V.white),
+      (listCsvAttr, fg V.cyan)
     ]
 
 ----------------------------------------------------------------------------------------------------
