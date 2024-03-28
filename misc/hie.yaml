@@ -23,3 +23,6 @@ cradle:
 
     - path: "test/ShowCsvPro.hs"
       component: "misclib:exe:show-csv-pro"
+
+    - path: "test/ShowCsvCell.hs"
+      component: "misclib:exe:show-csv-cell"

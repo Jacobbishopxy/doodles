@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
--- file: ShowCsvPro.hs
+-- file: ShowCsvCell.hs
 -- author: Jacob Xie
--- date: 2024/03/15 09:48:10 Friday
+-- date: 2024/03/26 17:08:20 Tuesday
 -- brief:
 
 module Main where
@@ -22,13 +22,11 @@ import Brick.Widgets.Edit
     renderEditor,
   )
 import Brick.Widgets.List
+import Brick.Widgets.Table
 import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy as BL
 import Data.Csv (HasHeader (HasHeader), decode)
-import Data.Either (fromRight)
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as TE
 import Data.Vector qualified as Vec
 import Graphics.Vty qualified as V
 import Graphics.Vty.CrossPlatform (mkVty)
@@ -40,81 +38,108 @@ import Lens.Micro.TH (makeLenses)
 -- Csv
 ----------------------------------------------------------------------------------------------------
 
-type CsvResult = Vec.Vector T.Text
+type Row = [String]
 
-readCsv :: FilePath -> IO (Either String CsvResult)
+type CsvResult = Vec.Vector Row
+
+readCsv :: FilePath -> IO CsvResult
 readCsv file = do
   contents <- BL.readFile file
-  return $ Vec.map cvtRow <$> decode HasHeader contents
+  case Data.Csv.decode HasHeader contents of
+    Left _ -> return Vec.empty
+    Right ctt -> return ctt
 
--- convert vector of ByteString into Text
-cvtRow :: Vec.Vector BL.ByteString -> T.Text
-cvtRow = T.intercalate "," . Prelude.map (TE.decodeUtf8 . BL.toStrict) . Vec.toList
+countCsvCols :: CsvResult -> Int
+countCsvCols = Prelude.length . Vec.head
 
 ----------------------------------------------------------------------------------------------------
--- Tui
+-- Adt
 ----------------------------------------------------------------------------------------------------
 
--- source name, representing different UI chunk
-data Name = EditInput | CsvBox deriving (Show, Eq, Ord)
+data Name = EditInput | TableBox deriving (Show, Eq, Ord)
 
 data AppState = AppState
   { _focusRing :: F.FocusRing Name,
     _inputText :: Editor String Name,
-    _outputCsv :: List Name T.Text
+    _outputCsv :: List Name Row,
+    _colIndex :: Int,
+    _colNum :: Int
   }
 
 makeLenses ''AppState
 
 ----------------------------------------------------------------------------------------------------
+-- Tui
+----------------------------------------------------------------------------------------------------
 
 drawUi :: AppState -> [Widget Name]
-drawUi st = [ui]
+drawUi st = [ui <=> hint]
   where
     ed = F.withFocusRing (st ^. focusRing) (renderEditor (str . unlines)) (st ^. inputText)
     ui =
       center $
-        str "Csv file path: "
-          <=> hLimit 100 (vLimit 2 ed)
-          <=> str " "
-          <=> box
-          <=> str " "
-          <=> str "Press Enter to show csv, Esc to quit."
-    label = str "Index " <+> cur <+> str " of " <+> total
+        hLimit 100 $
+          vBox
+            [ str "Csv file path: ",
+              vLimit 1 ed,
+              str " ",
+              box
+            ]
+    hint =
+      hCenter $
+        vBox
+          [ str "Press Enter to show csv.",
+            str "Use arrow keys to change selection.",
+            str "Press Esc to quit."
+          ]
+
+    label = str $ "Row " <> cur <> " / col " <> show (st ^. colIndex + 1)
     l = st ^. outputCsv
     box =
       borderWithLabel label $
-        hLimit 100 $
-          vLimit 50 $
-            renderList listDrawCsv True l
+        vLimit 50 $
+          renderList (listDrawElement $ st ^. colIndex) True l
     cur = case l ^. listSelectedL of
-      Nothing -> str "-"
-      Just i -> str $ show (i + 1)
-    total = str $ show $ Vec.length $ l ^. listElementsL
+      Nothing -> "-"
+      Just i -> show (i + 1)
 
-listDrawCsv :: Bool -> T.Text -> Widget Name
-listDrawCsv sel a =
-  let selStr s =
-        if sel
-          then withAttr listCsvAttr (str $ "-> " <> s)
-          else str s
-   in hCenter $ selStr (show a)
+listDrawElement :: Int -> Bool -> Row -> Widget Name
+listDrawElement colIdx sel row =
+  let ws = (\c -> if c == "" then withDefAttr nullCellAttr (str "null") else str c) <$> row
+      len = Prelude.length row
+      maybeSelect es = selectCell <$> Prelude.zip [0 ..] es
+      selectCell (i, w) = if sel && i == colIdx then withDefAttr selectedCellAttr w else w
+   in hLimit 100 $
+        hBox $
+          maybeSelect $
+            alignColumns (columnAlignments len) (columnWidths len) ws
 
-listCsvAttr :: AttrName
-listCsvAttr = listSelectedAttr <> attrName "custom"
+selectedCellAttr :: AttrName
+selectedCellAttr = attrName "selectedCell"
+
+nullCellAttr :: AttrName
+nullCellAttr = attrName "nullCell"
+
+columnWidths :: Int -> [Int]
+columnWidths = flip Prelude.replicate 10
+
+columnAlignments :: Int -> [ColumnAlignment]
+columnAlignments = flip Prelude.replicate AlignLeft
 
 ----------------------------------------------------------------------------------------------------
 
 handleEvent :: BrickEvent Name e -> EventM Name AppState ()
 handleEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
--- press enter to finish input
+-- press enter to read Csv
 handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
   st <- get
   case F.focusGetCurrent $ st ^. focusRing of
     Just EditInput -> do
+      -- read csv
       res <- liftIO $ readCsv $ Prelude.concat $ getEditContents $ st ^. inputText
-      let s = fromRight Vec.empty res
-      outputCsv .= list CsvBox s 1
+      outputCsv .= list TableBox res 1
+      colNum .= countCsvCols res
+      return ()
     _ -> return ()
 -- switch between `Name`
 handleEvent (VtyEvent (V.EvKey (V.KChar '\t') [])) =
@@ -125,13 +150,18 @@ handleEvent (VtyEvent (V.EvKey V.KBackTab [])) =
 handleEvent ev@(VtyEvent e) = do
   r <- use focusRing
   case F.focusGetCurrent r of
+    -- editor events
     Just EditInput -> zoom inputText $ handleEditorEvent ev
-    Just CsvBox -> zoom outputCsv $ handleListEventVi handleListEvent e
+    -- table events
+    Just TableBox -> case e of
+      V.EvKey V.KLeft [] ->
+        colIndex %= (\i -> max 0 (i - 1))
+      V.EvKey V.KRight [] -> do
+        st <- get
+        colIndex %= (\i -> min (st ^. colNum - 1) (i + 1))
+      _ -> zoom outputCsv $ handleListEvent e
     _ -> return ()
 handleEvent _ = return ()
-
-appCursor :: AppState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
-appCursor = F.focusRingCursor (^. focusRing)
 
 ----------------------------------------------------------------------------------------------------
 
@@ -148,9 +178,11 @@ app =
 initialState :: AppState
 initialState =
   AppState
-    { _focusRing = F.focusRing [EditInput, CsvBox], -- init focusRing on needed UI
+    { _focusRing = F.focusRing [EditInput, TableBox], -- init focusRing on needed UI
       _inputText = editor EditInput Nothing "",
-      _outputCsv = list CsvBox Vec.empty 0
+      _outputCsv = list TableBox Vec.empty 0,
+      _colIndex = 0,
+      _colNum = 0
     }
 
 theMap :: AttrMap
@@ -160,8 +192,14 @@ theMap =
     [ (editAttr, V.black `on` V.cyan),
       (editFocusedAttr, V.black `on` V.yellow),
       (listAttr, V.white `on` V.blue),
-      (listSelectedAttr, V.blue `on` V.white)
+      (selectedCellAttr, V.blue `on` V.white),
+      -- null cell
+      (nullCellAttr, style V.italic)
+      -- (nullCellAttr, fg V.red)
     ]
+
+appCursor :: AppState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
+appCursor = F.focusRingCursor (^. focusRing)
 
 ----------------------------------------------------------------------------------------------------
 -- Main
@@ -174,5 +212,3 @@ main = do
 
   -- Tui
   void $ customMain initialVty vtyBuilder Nothing app initialState
-
--- /home/jacob/Code/doodles/tmp/test.csv

@@ -145,3 +145,22 @@ executable show-csv-pro
     , vector
     , vty
     , vty-crossplatform
+
+executable show-csv-cell
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          ShowCsvCell.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , bytestring
+    , cassava
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , mtl
+    , vector
+    , vty
+    , vty-crossplatform
