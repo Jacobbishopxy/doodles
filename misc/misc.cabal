@@ -164,3 +164,12 @@ executable show-csv-cell
     , vector
     , vty
     , vty-crossplatform
+
+executable csv-read
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          CsvRead.hs
+  build-depends:
+    , base
+    , bytestring
