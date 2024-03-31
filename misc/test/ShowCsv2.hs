@@ -11,28 +11,30 @@ import MiscLib.CsvHelper
 import System.Environment (getArgs)
 
 data CronSchema = CronSchema
-  { dag :: String,
+  { id' :: Float,
+    dag :: String,
     name :: String,
     sleeper :: String,
-    input :: String,
+    input :: Maybe String,
     cmd :: String,
-    output :: String,
+    output :: Maybe String,
     activate :: Bool,
-    retries :: Int
+    retries :: Maybe Int
   }
   deriving (Show)
 
 instance ParseRecord CronSchema where
   parseRecord header row =
     CronSchema
-      { dag = readString header row "dag",
+      { id' = readFloat header row "id",
+        dag = readString header row "dag",
         name = readString header row "name",
         sleeper = readString header row "sleeper",
-        input = readString header row "input",
+        input = readString' header row "input",
         cmd = readString header row "cmd",
-        output = readString header row "output",
+        output = readString' header row "output",
         activate = readBool header row "activate",
-        retries = readInt header row "retries"
+        retries = readInt' header row "retries"
       }
 
 main :: IO ()
