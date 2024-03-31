@@ -5,14 +5,11 @@
 -- date: 2024/03/31 15:38:54 Sunday
 -- brief:
 
-
-
 module Main where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as C
 import Data.List (elemIndex)
-import Data.Maybe (fromJust, fromMaybe, isNothing)
 import System.Environment (getArgs)
 import System.IO
 
@@ -36,18 +33,12 @@ readCsv file = do
   contents <- C.hGetContents handle
 
   case C.lines contents of
-    (headerLine : bodyLine) -> do
+    (headerLine : bodyLines) -> do
       let header = rowSplit headerLine
-      return [parseRecord header (rowSplit x) | x <- bodyLine]
+      return [parseRecord header (rowSplit x) | x <- bodyLines]
     _ -> error "Insufficient lines in CSV file"
 
 ----------------------------------------------------------------------------------------------------
-
--- reorder fields based on header
-reorderFields :: [ByteString] -> [ByteString] -> [ByteString]
-reorderFields header fields = map (fromMaybe "" . flip lookup indexedFields) [0 .. length header - 1]
-  where
-    indexedFields = zip [0 ..] fields
 
 rowSplit :: ByteString -> [ByteString]
 rowSplit bs = f bs [] [] 0
@@ -60,16 +51,17 @@ rowSplit bs = f bs [] [] 0
 parseRecord :: [ByteString] -> [ByteString] -> CronSchema
 parseRecord header row =
   CronSchema
-    { dag = C.unpack $ getField "dag" header row,
-      name = C.unpack $ getField "name" header row,
-      sleeper = C.unpack $ getField "sleeper" header row,
-      input = C.unpack $ getField "input" header row,
-      cmd = C.unpack $ getField "cmd" header row,
-      output = C.unpack $ getField "output" header row,
-      activate = readBool $ getField "activate" header row,
-      retries = readFloat $ getField "retries" header row
+    { dag = C.unpack $ g "dag",
+      name = C.unpack $ g "name",
+      sleeper = C.unpack $ g "sleeper",
+      input = C.unpack $ g "input",
+      cmd = C.unpack $ g "cmd",
+      output = C.unpack $ g "output",
+      activate = readBool $ g "activate",
+      retries = readFloat $ g "retries"
     }
   where
+    g = getField header row
     readFloat :: ByteString -> Float
     readFloat s = case reads (C.unpack s) of
       [(x, "")] -> x
@@ -78,16 +70,8 @@ parseRecord header row =
     readBool "TRUE" = True
     readBool _ = False
 
--- find index
-(!!?) :: (Eq a) => [a] -> [a] -> Either String [Int]
-(!!?) xs ys
-  | any isNothing f = Left "Some elements not found in the list"
-  | otherwise = Right $ map fromJust f
-  where
-    f = map (`elemIndex` ys) xs
-
-getField :: (Eq a) => a -> [a] -> [b] -> b
-getField name headers row = case name `elemIndex` headers of
+getField :: (Eq a) => [a] -> [b] -> a -> b
+getField headers row name = case name `elemIndex` headers of
   Nothing -> error "Element not in list"
   Just i -> row !! i
 
