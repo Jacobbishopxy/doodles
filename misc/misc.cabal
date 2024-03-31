@@ -173,3 +173,13 @@ executable csv-read
   build-depends:
     , base
     , bytestring
+
+executable csv-read2record
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          CsvRead2Record.hs
+  build-depends:
+    , base
+    , bytestring
+    , utf8-string
