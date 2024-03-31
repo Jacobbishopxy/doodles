@@ -23,6 +23,7 @@ library
   exposed-modules:
     MiscLib
     MiscLib.CronSchema
+    MiscLib.CsvHelper
     MiscLib.DotenvReader
 
   -- other-modules:
@@ -182,7 +183,6 @@ executable csv-read2record
   build-depends:
     , base
     , bytestring
-    , utf8-string
 
 executable csv-read2
   import:           warnings
@@ -192,3 +192,21 @@ executable csv-read2
   build-depends:
     , base
     , text
+
+executable show-csv2
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          ShowCsv2.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , misclib
+    , mtl
+    , text
+    , vty
+    , vty-crossplatform

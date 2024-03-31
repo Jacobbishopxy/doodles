@@ -35,3 +35,6 @@ cradle:
 
     - path: "test/CsvRead2.hs"
       component: "misclib:exe:csv-read2"
+
+    - path: "test/ShowCsv2.hs"
+      component: "misclib:exe:show-csv2"
