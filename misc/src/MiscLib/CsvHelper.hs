@@ -45,9 +45,6 @@ readCsv file = do
     (headerLine : bodyLines) ->
       return $ Right [parseRecord (rowSplit headerLine) (rowSplit r) | r <- bodyLines]
     _ -> return $ Left "Insufficient lines in CSV file"
-  where
-    rowSplit :: T.Text -> [T.Text]
-    rowSplit = T.splitOn "," . T.strip
 
 readFloat :: [T.Text] -> [T.Text] -> T.Text -> Float
 readFloat header row name = case reads $ T.unpack t of
@@ -116,6 +113,14 @@ readBool' header row name = case getField header row name of
 ----------------------------------------------------------------------------------------------------
 -- Private Fn
 ----------------------------------------------------------------------------------------------------
+
+rowSplit :: T.Text -> [T.Text]
+rowSplit t = f t [] [] 0
+  where
+    f :: T.Text -> String -> [T.Text] -> Int -> [T.Text]
+    f s cur line _ | T.length s == 1 = reverse (T.pack (reverse cur) : line)
+    f s cur line n | T.head s == ',' && even n = f (T.tail s) [] (T.pack (reverse cur) : line) 0
+    f s cur line n = f (T.tail s) (T.head s : cur) line (if T.head s == '"' then n + 1 else n)
 
 getField :: (Eq a) => [a] -> [b] -> a -> b
 getField headers row name = case name `elemIndex` headers of

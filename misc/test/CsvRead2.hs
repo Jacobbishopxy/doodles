@@ -36,7 +36,12 @@ readCsv file = do
     _ -> error "Insufficient lines in CSV file"
 
 rowSplit :: T.Text -> [T.Text]
-rowSplit = T.splitOn "," . T.strip
+rowSplit t = f t [] [] 0
+  where
+    f :: T.Text -> String -> [T.Text] -> Int -> [T.Text]
+    f s cur line _ | T.length s == 1 = reverse (T.pack (reverse cur) : line)
+    f s cur line n | T.head s == ',' && even n = f (T.tail s) [] (T.pack (reverse cur) : line) 0
+    f s cur line n = f (T.tail s) (T.head s : cur) line (if T.head s == '"' then n + 1 else n)
 
 ----------------------------------------------------------------------------------------------------
 
@@ -73,4 +78,4 @@ main = do
   let csvFile = head args
   cronSchemas <- readCsv csvFile
 
-  print cronSchemas
+  mapM_ (\(i, r) -> putStrLn $ "Index " <> show (i :: Int) <> " : " <> show r) (zip [0 ..] cronSchemas)

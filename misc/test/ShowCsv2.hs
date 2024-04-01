@@ -19,7 +19,8 @@ data CronSchema = CronSchema
     cmd :: String,
     output :: Maybe String,
     activate :: Bool,
-    retries :: Maybe Int
+    retries :: Maybe Int,
+    ps :: String
   }
   deriving (Show)
 
@@ -34,7 +35,8 @@ instance ParseRecord CronSchema where
         cmd = readString header row "cmd",
         output = readString' header row "output",
         activate = readBool header row "activate",
-        retries = readInt' header row "retries"
+        retries = readInt' header row "retries",
+        ps = readString header row "ps"
       }
 
 main :: IO ()

@@ -46,7 +46,7 @@ readCsv :: FilePath -> IO CsvResult
 readCsv file = do
   contents <- BL.readFile file
   case Data.Csv.decode HasHeader contents of
-    Left _ -> return Vec.empty
+    Left err -> error $ "Parse CSV file error:\n" <> err
     Right ctt -> return ctt
 
 countCsvCols :: CsvResult -> Int
