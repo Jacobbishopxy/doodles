@@ -37,6 +37,7 @@ library
     , filepath
     , split
     , text
+    , unordered-containers
     , vector
 
   hs-source-dirs:   src
