@@ -16,12 +16,10 @@ module MiscLib.CronSchema
   )
 where
 
-import qualified Data.ByteString.Lazy as BL
-import Data.Char (toLower)
-import Data.Csv (FromNamedRecord (..), Header, decodeByName, (.:))
 import Data.Either (fromRight, rights)
 import Data.List (isInfixOf, isSuffixOf)
-import qualified Data.Vector as V
+import Data.Maybe (fromMaybe)
+import MiscLib.CsvHelper
 import System.Directory (doesDirectoryExist, doesFileExist, getDirectoryContents)
 import System.FilePath ((</>))
 
@@ -35,37 +33,13 @@ data CronSchema = CronSchema
     dag :: String,
     name :: String,
     sleeper :: String,
-    input :: String,
+    input :: Maybe String,
     cmd :: String,
-    output :: String,
+    output :: Maybe String,
     activate :: Bool,
     fPath :: String
   }
   deriving (Show)
-
-instance FromNamedRecord CronSchema where
-  parseNamedRecord m = do
-    dagVal <- m .: "dag"
-    nameVal <- m .: "name"
-    sleeperVal <- m .: "sleeper"
-    inputVal <- m .: "input"
-    cmdVal <- m .: "cmd"
-    outputVal <- m .: "output"
-    activateVal <- m .: "activate"
-    return
-      CronSchema
-        { idx = 0,
-          dag = dagVal,
-          name = nameVal,
-          sleeper = sleeperVal,
-          input = inputVal,
-          cmd = cmdVal,
-          output = outputVal,
-          activate = parseBool activateVal,
-          fPath = ""
-        }
-    where
-      parseBool = (== "true") . map toLower
 
 -- Conjunction
 data Conj = AND | OR deriving (Enum, Read)
@@ -76,6 +50,24 @@ data SearchParam = SearchParam
     searchConj :: Conj,
     searchStr :: String
   }
+
+----------------------------------------------------------------------------------------------------
+-- Impl
+----------------------------------------------------------------------------------------------------
+
+instance ParseRecord CronSchema where
+  parseRecord header row =
+    CronSchema
+      { idx = 0,
+        dag = readString header row "dag",
+        name = readString header row "name",
+        sleeper = readString header row "sleeper",
+        input = readString' header row "input",
+        cmd = readString header row "cmd",
+        output = readString' header row "output",
+        activate = readBool header row "activate",
+        fPath = ""
+      }
 
 ----------------------------------------------------------------------------------------------------
 -- Fn
@@ -115,16 +107,6 @@ genSearchParam f c s =
       searchStr = s
     }
 
--- discard header
-readCsv :: FilePath -> IO (Either String [CronSchema])
-readCsv file = do
-  csvData <- BL.readFile file
-  return $ prc <$> decodeByName csvData
-  where
-    prc :: (Header, V.Vector CronSchema) -> [CronSchema]
-    prc d = V.toList $ V.map (upc file) (V.indexed $ snd d)
-    upc p (i, r) = r {fPath = p, idx = i + 1}
-
 -- Given a directory, search all matched Csv files
 searchCronByDir :: FilePath -> IO [CronSchema]
 searchCronByDir dir = do
@@ -147,9 +129,9 @@ getCronStrings cron = map f
     f "dag" = dag cron
     f "name" = name cron
     f "sleeper" = sleeper cron
-    f "input" = input cron
+    f "input" = fromMaybe "" $ input cron
     f "cmd" = cmd cron
-    f "output" = output cron
+    f "output" = fromMaybe "" $ output cron
     f _ = ""
 
 -- Check a list of string contain a substring

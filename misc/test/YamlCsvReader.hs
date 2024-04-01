@@ -25,7 +25,8 @@ instance FromJSON CronSettings
 main :: IO ()
 main = do
   args <- getArgs
-  parsedContent <- Y.decodeFileEither (head args) :: IO (Either Y.ParseException CronSettings)
-  let cs = fromRight (error "check Yaml") parsedContent
+  let yamlPath = head args
+  parsedContent <- Y.decodeFileEither yamlPath
+  let cs = fromRight (error "check Yaml if exists") parsedContent
   crons <- getAllCrons $ lookupDirs cs
   mapM_ print crons
