@@ -6,12 +6,6 @@
 -- author: Jacob Xie
 -- date: 2024/03/31 16:31:52 Sunday
 -- brief:
--- ref: https://github.com/haskell-hvr/cassava/blob/3f792495c1256dc2e3a503b4c5c4518dfce9c5d8/src/Data/Csv/Conversion.hs#L1169
-
-----------------------------------------------------------------------------------------------------
--- Class
-----------------------------------------------------------------------------------------------------
--- based on a header, turn a row into a record
 
 module MiscLib.CsvHelper
   ( readCsv,
@@ -29,59 +23,17 @@ module MiscLib.CsvHelper
   )
 where
 
-import qualified Data.HashMap.Lazy as HM
 import Data.List (elemIndex)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
-type Failure f r = String -> f r
+----------------------------------------------------------------------------------------------------
+-- Class
+----------------------------------------------------------------------------------------------------
 
-type Success a f r = a -> f r
-
-newtype Parser a = Parser
-  { unParser ::
-      forall (f :: * -> *) (r :: *).
-      Failure f r ->
-      Success a f r ->
-      f r
-  }
-
-findIdx :: (Eq a) => [a] -> a -> Maybe Int
-findIdx headers name = name `elemIndex` headers
-
-findVal :: Int -> [a] -> Maybe a
-findVal idx row = row !? idx
-
-(!?) :: [a] -> Int -> Maybe a
-[] !? _ = Nothing
-(x : xs) !? i
-  | i < 0 = Nothing
-  | i == 0 = Just x
-  | otherwise = xs !? (i - 1)
-
+-- based on a header, turn a row into a record
 class ParseRecord a where
   parseRecord :: [T.Text] -> [T.Text] -> a
-
-class ParseConf a where
-  -- use a header to generate `Parser`
-  parseConf :: [T.Text] -> Parser a
-
-data CronSchema = CronSchema
-  { id' :: Float,
-    dag :: String,
-    name' :: String,
-    sleeper :: String,
-    input :: Maybe String,
-    cmd :: String,
-    output :: Maybe String,
-    activate :: Bool,
-    retries :: Maybe Int,
-    ps :: String
-  }
-  deriving (Show)
-
-instance ParseConf CronSchema where
-  parseConf header = undefined
 
 ----------------------------------------------------------------------------------------------------
 -- Public Fn
@@ -176,7 +128,3 @@ getField :: (Eq a) => [a] -> [b] -> a -> b
 getField header row name = case name `elemIndex` header of
   Just i -> row !! i
   Nothing -> error "Element not in list"
-
-getField' :: (Eq a) => [a] -> [b] -> a -> Maybe b
-getField' header row name =
-  findIdx header name >>= flip findVal row
