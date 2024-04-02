@@ -201,6 +201,16 @@ executable show-csv2
   ghc-options:      -threaded -Wall -Wcompat -O2
   build-depends:
     , base
+    , misclib
+
+executable cron-search
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          CronSearch.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
     , brick
     , microlens
     , microlens-mtl

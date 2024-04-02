@@ -7,11 +7,10 @@
 
 module MiscLib.CronSchema
   ( CronSchema,
-    Conj,
-    SearchParam,
+    Conj (..),
+    SearchParam (..),
     getAllCron,
     getAllCrons,
-    genSearchParam,
     searchCron,
   )
 where
@@ -42,7 +41,7 @@ data CronSchema = CronSchema
   deriving (Show)
 
 -- Conjunction
-data Conj = AND | OR deriving (Enum, Read)
+data Conj = AND | OR deriving (Enum, Read, Eq, Ord)
 
 -- SearchParam
 data SearchParam = SearchParam
@@ -98,14 +97,6 @@ searchCron sp = filter $ containsSubstring conj lookupStr . flip getCronStrings 
 ----------------------------------------------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------------------------------------------
-
-genSearchParam :: [String] -> Conj -> String -> SearchParam
-genSearchParam f c s =
-  SearchParam
-    { searchFields = f,
-      searchConj = c,
-      searchStr = s
-    }
 
 -- Given a directory, search all matched Csv files
 searchCronByDir :: FilePath -> IO [CronSchema]

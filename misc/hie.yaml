@@ -38,3 +38,6 @@ cradle:
 
     - path: "test/ShowCsv2.hs"
       component: "misclib:exe:show-csv2"
+
+    - path: "test/CronSearch.hs"
+      component: "misclib:exe:cron-search"
