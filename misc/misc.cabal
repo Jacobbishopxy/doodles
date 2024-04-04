@@ -210,6 +210,27 @@ executable cron-search
   main-is:          CronSearch.hs
   ghc-options:      -threaded -Wall -Wcompat -O2
   build-depends:
+    , aeson
+    , base
+    , brick
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , misclib
+    , mtl
+    , text
+    , vector
+    , vty
+    , vty-crossplatform
+    , yaml
+
+executable test-gpt
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          TestGPT.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
     , base
     , brick
     , microlens

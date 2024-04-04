@@ -6,11 +6,12 @@
 -- brief:
 
 module MiscLib.CronSchema
-  ( CronSchema,
+  ( CronSchema (..),
     Conj (..),
     SearchParam (..),
     getAllCron,
     getAllCrons,
+    getCronStrings,
     searchCron,
   )
 where
@@ -41,7 +42,7 @@ data CronSchema = CronSchema
   deriving (Show)
 
 -- Conjunction
-data Conj = AND | OR deriving (Enum, Read, Eq, Ord)
+data Conj = AND | OR deriving (Enum, Show, Read, Eq, Ord)
 
 -- SearchParam
 data SearchParam = SearchParam
@@ -94,6 +95,19 @@ searchCron sp = filter $ containsSubstring conj lookupStr . flip getCronStrings 
     conj = searchConj sp
     lookupStr = searchStr sp
 
+-- Get all strings by a field list
+getCronStrings :: CronSchema -> [String] -> [String]
+getCronStrings cron = map f
+  where
+    f "dag" = dag cron
+    f "name" = name cron
+    f "sleeper" = sleeper cron
+    f "input" = fromMaybe "" $ input cron
+    f "cmd" = cmd cron
+    f "output" = fromMaybe "" $ output cron
+    f "activate" = show $ activate cron
+    f _ = ""
+
 ----------------------------------------------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------------------------------------------
@@ -112,18 +126,6 @@ searchCronByDir dir = do
 -- Given a file, get `[CronSchema]`
 searchCronByFile :: FilePath -> IO [CronSchema]
 searchCronByFile file = fromRight [] <$> readCsv file
-
--- Get all strings by a field list
-getCronStrings :: CronSchema -> [String] -> [String]
-getCronStrings cron = map f
-  where
-    f "dag" = dag cron
-    f "name" = name cron
-    f "sleeper" = sleeper cron
-    f "input" = fromMaybe "" $ input cron
-    f "cmd" = cmd cron
-    f "output" = fromMaybe "" $ output cron
-    f _ = ""
 
 -- Check a list of string contain a substring
 containsSubstring :: Conj -> String -> [String] -> Bool
