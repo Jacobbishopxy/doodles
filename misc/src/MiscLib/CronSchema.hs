@@ -16,7 +16,7 @@ module MiscLib.CronSchema
   )
 where
 
-import Data.Either (fromRight, rights)
+import Data.Either (fromRight)
 import Data.List (isInfixOf, isSuffixOf)
 import Data.Maybe (fromMaybe)
 import MiscLib.CsvHelper
@@ -99,6 +99,7 @@ searchCron sp = filter $ containsSubstring conj lookupStr . flip getCronStrings 
 getCronStrings :: CronSchema -> [String] -> [String]
 getCronStrings cron = map f
   where
+    f "idx" = show $ idx cron
     f "dag" = dag cron
     f "name" = name cron
     f "sleeper" = sleeper cron
@@ -106,6 +107,7 @@ getCronStrings cron = map f
     f "cmd" = cmd cron
     f "output" = fromMaybe "" $ output cron
     f "activate" = show $ activate cron
+    f "fPath" = fPath cron
     f _ = ""
 
 ----------------------------------------------------------------------------------------------------
@@ -116,8 +118,8 @@ getCronStrings cron = map f
 searchCronByDir :: FilePath -> IO [CronSchema]
 searchCronByDir dir = do
   files <- filter (".csv" `isSuffixOf`) <$> getAbsDirCtt dir
-  parsedData <- mapM readCsv files
-  return . concat $ rights parsedData
+  parsedData <- mapM (\f -> processRow f . fromRight [] <$> readCsv f) files
+  return . concat $ parsedData
   where
     -- turn relative filePath into filePath which based on execution location
     getAbsDirCtt :: FilePath -> IO [FilePath]
@@ -125,7 +127,13 @@ searchCronByDir dir = do
 
 -- Given a file, get `[CronSchema]`
 searchCronByFile :: FilePath -> IO [CronSchema]
-searchCronByFile file = fromRight [] <$> readCsv file
+searchCronByFile file = processRow file . fromRight [] <$> readCsv file
+
+-- Add extra info to `CronSchema`
+processRow :: FilePath -> [CronSchema] -> [CronSchema]
+processRow fp cs = upfPath fp <$> zip [0 ..] cs
+  where
+    upfPath p (i, r) = r {fPath = p, idx = i + 1}
 
 -- Check a list of string contain a substring
 containsSubstring :: Conj -> String -> [String] -> Bool

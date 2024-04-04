@@ -19,7 +19,6 @@ import Brick.Forms
     (@@=),
   )
 import Brick.Widgets.Border
-import Brick.Widgets.Center
 import Brick.Widgets.List
 import Brick.Widgets.Table
 import Control.Monad (void)
@@ -40,12 +39,11 @@ import System.Environment (getArgs)
 -- Adt
 ----------------------------------------------------------------------------------------------------
 
--- cols: str, string: str, conj: str, ignore_case: bool
-
 -- Source Name
 data Name
   = FormRegion
   | ResultRegion
+  | DetailRegion
   deriving (Eq, Ord, Show)
 
 data ColsField = InputCol | CmdCol | OutputCol
@@ -56,7 +54,6 @@ data ConjField = ConjAnd | ConjOr
 
 data AppState = AppState
   { _focusRing :: F.FocusRing Name,
-    _lastReportedClick :: Maybe (Name, Location),
     -- string to search
     _searchString :: T.Text,
     -- columns to search
@@ -83,7 +80,7 @@ makeLenses ''AppState
 ----------------------------------------------------------------------------------------------------
 
 resultBoxColumns :: [String]
-resultBoxColumns = ["dag", "task", "sleeper", "Input", "cmd", "output", "activate"]
+resultBoxColumns = ["idx", "dag", "task", "sleeper", "input", "cmd", "output", "activate", "file"]
 
 ----------------------------------------------------------------------------------------------------
 -- UI
@@ -94,25 +91,32 @@ drawUi st = [ui]
   where
     ui =
       vBox
-        [ hCenter $ controlBox st,
-          hCenter $ borderWithLabel (str "matched results") $ resultBox st
+        [ vLimitPercent 30 $
+            hBox
+              [ hLimitPercent 50 $ borderWithLabel titleSP $ controlBox st <+> fill ' ',
+                borderWithLabel titleDI $ infoBox st <+> fill ' '
+              ],
+          borderWithLabel titleMR $ resultBox st
         ]
-        <=> borderWithLabel (str "detailed info") (infoBox st)
+    titleSP = str "search param"
+    titleDI = str "detailed info"
+    titleMR = str "matched result"
 
 -- control box
 controlBox :: AppState -> Widget Name
 controlBox =
   renderForm
     . newForm
-      [ label "String" @@= editTextField searchString FormRegion (Just 1),
+      [ labelP "String" @@= editTextField searchString FormRegion (Just 1),
         label "Select columns" @@= checkboxField selectInputCol FormRegion "Input",
         label "" @@= checkboxField selectCmdCol FormRegion "Cmd",
-        label "" @@= checkboxField selectOutputCol FormRegion "Output",
-        label "Conjunction" @@= radioField conj [(AND, FormRegion, "And"), (OR, FormRegion, "Or")],
-        label "Case sensitive" @@= checkboxField caseSensitive FormRegion ""
+        labelP "" @@= checkboxField selectOutputCol FormRegion "Output",
+        labelP "Conjunction" @@= radioField conj [(AND, FormRegion, "And"), (OR, FormRegion, "Or")],
+        labelP "Case sensitive" @@= checkboxField caseSensitive FormRegion ""
       ]
   where
-    label s w = padBottom (Pad 1) $ vLimit 1 (hLimit 15 $ str s <+> fill ' ') <+> w
+    label s w = vLimit 1 (hLimit 15 $ str s <+> fill ' ') <+> w
+    labelP s w = padBottom (Pad 1) $ label s w
 
 -- result box
 resultBox :: AppState -> Widget Name
@@ -131,6 +135,7 @@ infoBox st =
     l :: CronSchema -> Vec.Vector String
     l = Vec.fromList . flip getCronStrings resultBoxColumns
 
+-- safe `!!`
 (!?) :: [a] -> Int -> Maybe a
 {-# INLINEABLE (!?) #-}
 xs !? n
@@ -204,10 +209,29 @@ theMap =
 ----------------------------------------------------------------------------------------------------
 
 app :: App AppState e Name
-app = undefined
+app =
+  App
+    { appDraw = drawUi,
+      appChooseCursor = appCursor,
+      appHandleEvent = appEvent,
+      appStartEvent = return (),
+      appAttrMap = const theMap
+    }
 
 initialState :: [CronSchema] -> AppState
-initialState = undefined
+initialState cs =
+  AppState
+    { _focusRing = F.focusRing [FormRegion, ResultRegion],
+      _searchString = "",
+      _selectInputCol = True,
+      _selectCmdCol = True,
+      _selectOutputCol = True,
+      _conj = AND,
+      _caseSensitive = False,
+      _allCrons = cs,
+      _searchedResult = [],
+      _selectedResult = 0
+    }
 
 appCursor :: AppState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
 appCursor = F.focusRingCursor (^. focusRing)
@@ -217,7 +241,7 @@ appCursor = F.focusRingCursor (^. focusRing)
 ----------------------------------------------------------------------------------------------------
 
 data CronSettings where
-  CronSettings :: {lookupDirs :: [String]} -> CronSettings
+  CronSettings :: {lookupDirs :: [String], version :: Float} -> CronSettings
   deriving (Show, Generic)
 
 instance FromJSON CronSettings
@@ -231,7 +255,7 @@ main = do
   args <- getArgs
   let yamlPath = case args of
         (x : _) -> x
-        [] -> "./cron_settings.yaml"
+        [] -> "./cron_settings.yml"
   p <- Y.decodeFileEither yamlPath
   let s = fromRight (error "check yaml if exists") p
   crons <- getAllCrons $ lookupDirs s
