@@ -42,5 +42,8 @@ cradle:
     - path: "test/CronSearch.hs"
       component: "misclib:exe:cron-search"
 
+    - path: "test/CronSearchUtil.hs"
+      component: "misclib:exe:cron-search"
+
     - path: "test/TestGPT.hs"
       component: "misclib:exe:test-gpt"

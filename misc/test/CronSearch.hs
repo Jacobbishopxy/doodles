@@ -17,17 +17,17 @@ import Brick.Widgets.Edit (editAttr, editFocusedAttr)
 import Brick.Widgets.List
 import Brick.Widgets.Table
 import Control.Monad (void)
-import Data.Aeson (FromJSON)
+import CronSearchUtil
 import Data.Either (fromRight)
 import Data.Text qualified as T
 import Data.Vector qualified as Vec
 import Data.Yaml qualified as Y
-import GHC.Generics (Generic)
 import Graphics.Vty qualified as V
 import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro
 import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
+import MiscLib ((!?))
 import MiscLib.CronSchema
 import System.Environment (getArgs)
 
@@ -61,6 +61,7 @@ data ConjField = ConjAnd | ConjOr
 data Search = Search
   { _searchString :: T.Text,
     -- columns to search
+    _selectSleeperCol :: Bool,
     _selectInputCol :: Bool,
     _selectCmdCol :: Bool,
     _selectOutputCol :: Bool,
@@ -75,7 +76,6 @@ makeLenses ''Search
 data AppState = AppState
   { _focusRing :: F.FocusRing Name,
     -- search form
-    _search :: Search,
     _searchForm :: Form Search () Name,
     -- all crons
     _allCrons :: [CronSchema],
@@ -87,13 +87,6 @@ data AppState = AppState
   }
 
 makeLenses ''AppState
-
-----------------------------------------------------------------------------------------------------
--- Const
-----------------------------------------------------------------------------------------------------
-
-resultBoxColumns :: [String]
-resultBoxColumns = ["idx", "dag", "name", "sleeper", "input", "cmd", "output", "activate", "file"]
 
 ----------------------------------------------------------------------------------------------------
 -- UI
@@ -125,6 +118,8 @@ helpBox :: Widget Name
 helpBox =
   str $
     "Keys:\n"
+      <> "Tab:    next param\n"
+      <> "Space:  select/unselect\n"
       <> "Ctrl+S: search\n"
       <> "Ctrl+N: switch to next panel\n"
       <> "Ctrl+P: switch to previous panel\n"
@@ -142,26 +137,11 @@ infoBox :: AppState -> Widget Name
 infoBox st =
   case (st ^. searchedResult) !? (st ^. selectedResult) of
     Nothing -> emptyWidget
-    Just cs -> renderList listDrawInfo False $ list DetailRegion (l cs) 1
+    Just cs -> renderList listDrawInfo False $ list DetailRegion (l cs) 0
   where
     l :: CronSchema -> Vec.Vector String
     -- TODO: max display length
     l = Vec.fromList . flip genCronStrings resultBoxColumns
-
--- safe `!!`
-(!?) :: [a] -> Int -> Maybe a
-{-# INLINEABLE (!?) #-}
-xs !? n
-  | n < 0 = Nothing
-  | otherwise =
-      foldr
-        ( \x r k -> case k of
-            0 -> Just x
-            _ -> r (k - 1)
-        )
-        (const Nothing)
-        xs
-        n
 
 genCronStrings :: CronSchema -> [String] -> [String]
 genCronStrings cs c = [c' <> ": " <> s' | (c', s') <- zip c (getCronStrings cs c)]
@@ -187,7 +167,7 @@ mkForm =
 listDrawResult :: Bool -> CronSchema -> Widget Name
 listDrawResult sel cs =
   let ws = if sel then s else u
-   in hLimitPercent 100 $ hBox $ alignColumns columnAlignments columnWidths ws
+   in hBox $ alignColumns columnAlignments columnWidths ws
   where
     -- TODO: c is `[String]`, attrName cannot cover list
     c = getCronStrings cs resultBoxColumns
@@ -212,22 +192,22 @@ appEvent :: BrickEvent Name () -> EventM Name AppState ()
 -- quit
 appEvent (VtyEvent (V.EvResize {})) = return ()
 appEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
--- switch between `Name`
+-- press Ctrl+N switch to next panel
 appEvent (VtyEvent (V.EvKey (V.KChar 'n') [V.MCtrl])) = do
   r <- use focusRing
   case F.focusGetCurrent r of
     Just (SearchRegion _) -> focusRing %= F.focusSetCurrent ResultRegion
     Just ResultRegion -> focusRing %= F.focusSetCurrent (SearchRegion StringField)
     _ -> return ()
+-- press Ctrl+P switch to previous panel
 appEvent (VtyEvent (V.EvKey (V.KChar 'p') [V.MCtrl])) = do
   r <- use focusRing
   case F.focusGetCurrent r of
     Just (SearchRegion _) -> focusRing %= F.focusSetCurrent ResultRegion
     Just ResultRegion -> focusRing %= F.focusSetCurrent (SearchRegion StringField)
     _ -> return ()
--- press Enter to search while in `SearchRegion`
+-- press Ctrl+S to search while in `SearchRegion`
 appEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
-  -- TODO: state change?
   modify commitSearchRequest
 -- other cases
 appEvent ev@(VtyEvent ve) = do
@@ -240,19 +220,26 @@ appEvent ev@(VtyEvent ve) = do
     -- handle `ResultRegion`
     Just ResultRegion ->
       -- TODO: not working?
-      zoom searchedResultList $ handleListEvent ve
+      zoom searchedResultList $ handleListEventVi handleListEvent ve
     _ -> return ()
 appEvent _ = return ()
 
 -- according to the current form states, update filtered result
 commitSearchRequest :: AppState -> AppState
 commitSearchRequest st =
-  let flt = [st ^. search . selectInputCol, st ^. search . selectCmdCol, st ^. search . selectOutputCol]
-      cols = ["input", "cmd", "output"]
-      sf = [c | (c, f) <- zip cols flt, f]
-      sp = SearchParam sf (st ^. search . conjunction) (T.unpack $ st ^. search . searchString)
+  let sp = genSearchParam $ formState $ st ^. searchForm
       sr = searchCron sp (st ^. allCrons)
-   in st & searchedResult .~ sr & searchedResultList .~ list ResultRegion (Vec.fromList sr) 1
+   in st
+        & searchedResult .~ sr
+        & searchedResultList .~ list ResultRegion (Vec.fromList sr) 1
+        & focusRing %~ F.focusSetCurrent ResultRegion -- jump to result region
+
+genSearchParam :: Search -> SearchParam
+genSearchParam s =
+  let flt = [s ^. selectSleeperCol, s ^. selectInputCol, s ^. selectCmdCol, s ^. selectOutputCol]
+      cols = ["sleeper", "input", "cmd", "output"]
+      sf = [c | (c, f) <- zip cols flt, f]
+   in SearchParam sf (s ^. conjunction) (T.unpack $ s ^. searchString)
 
 ----------------------------------------------------------------------------------------------------
 -- Attr
@@ -271,10 +258,12 @@ theMap =
     ]
 
 resultListAttr :: AttrName
+-- resultListAttr = attrName "resultList"
 resultListAttr = listAttr <> attrName "resultList"
 
 resultSelectedListAttr :: AttrName
-resultSelectedListAttr = listSelectedAttr <> attrName "resultSelectedList"
+-- resultSelectedListAttr = listSelectedAttr <> attrName "resultSelectedList"
+resultSelectedListAttr = attrName "resultSelectedList"
 
 ----------------------------------------------------------------------------------------------------
 -- App
@@ -294,6 +283,7 @@ defaultSearch :: Search
 defaultSearch =
   Search
     { _searchString = "",
+      _selectSleeperCol = False,
       _selectInputCol = True,
       _selectCmdCol = True,
       _selectOutputCol = True,
@@ -317,7 +307,6 @@ initialState :: [CronSchema] -> AppState
 initialState cs =
   AppState
     { _focusRing = F.focusRing focusRingList,
-      _search = defaultSearch,
       _searchForm = mkForm defaultSearch,
       _allCrons = cs,
       _searchedResult = [],
@@ -327,16 +316,6 @@ initialState cs =
 
 appCursor :: AppState -> [CursorLocation Name] -> Maybe (CursorLocation Name)
 appCursor = F.focusRingCursor (^. focusRing)
-
-----------------------------------------------------------------------------------------------------
--- Conf
-----------------------------------------------------------------------------------------------------
-
-data CronSettings where
-  CronSettings :: {lookupDirs :: [String], version :: Float} -> CronSettings
-  deriving (Show, Generic)
-
-instance FromJSON CronSettings
 
 ----------------------------------------------------------------------------------------------------
 -- Main
@@ -355,12 +334,7 @@ main = do
   crons <- getAllCrons $ lookupDirs s
 
   -- build vty
-  let vtyBuilder = do
-        v <- mkVty V.defaultConfig
-        -- TODO: not working
-        -- enable Mouse control
-        V.setMode (V.outputIface v) V.Mouse True
-        return v
+  let vtyBuilder = mkVty V.defaultConfig
   initialVty <- vtyBuilder
 
   -- Tui

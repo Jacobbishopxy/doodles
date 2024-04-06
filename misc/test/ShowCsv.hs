@@ -73,20 +73,25 @@ listDrawElement :: (Show a) => Bool -> a -> Widget ()
 listDrawElement sel a =
   let selStr s =
         if sel
-          then withAttr customAttr (str $ "<" <> s <> ">")
-          else str s
+          then withAttr customAttr $ str $ "<" <> s <> ">"
+          else withAttr customAttr2 $ str s
    in C.hCenter $ str "Item" <+> selStr (show a)
 
 customAttr :: AttrName
 customAttr = L.listSelectedAttr <> attrName "custom"
 
+customAttr2 :: AttrName
+customAttr2 = L.listSelectedAttr <> attrName "custom2"
+
 theMap :: AttrMap
 theMap =
   attrMap
     V.defAttr
-    [ (L.listAttr, V.white `on` V.blue),
-      (L.listSelectedAttr, V.blue `on` V.white),
-      (customAttr, fg V.cyan)
+    [ --  (L.listAttr, V.white `on` V.blue),
+      -- (L.listSelectedAttr, V.blue `on` V.white),
+      -- (customAttr, fg V.cyan),
+      (customAttr, V.blue `on` V.white),
+      (customAttr2, V.white `on` V.blue)
     ]
 
 theApp :: App (L.List () T.Text) e ()

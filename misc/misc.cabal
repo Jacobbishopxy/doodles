@@ -50,9 +50,8 @@ executable cron-csv-reader
   main-is:          CronCsvReader.hs
   build-depends:
     , base
-    , bytestring
-    , cassava
-    , vector
+    , misclib
+    , text
 
 executable dir-csv-reader
   import:           warnings
@@ -209,6 +208,7 @@ executable cron-search
   hs-source-dirs:   test
   main-is:          CronSearch.hs
   ghc-options:      -threaded -Wall -Wcompat -O2
+  other-modules:    CronSearchUtil
   build-depends:
     , aeson
     , base
