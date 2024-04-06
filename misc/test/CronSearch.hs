@@ -51,6 +51,7 @@ data SearchRegion
   | ConjAndField
   | ConjOrField
   | CaseSensitiveField
+  | InvisibleField
   deriving (Eq, Ord, Show)
 
 data ColsField = InputCol | CmdCol | OutputCol
@@ -69,7 +70,8 @@ data Search = Search
     -- conjunction
     _conjunction :: Conj,
     -- ignore case
-    _caseSensitive :: Bool
+    _caseSensitive :: Bool,
+    _invisibleFocus :: Bool
   }
 
 makeLenses ''Search
@@ -103,7 +105,7 @@ drawUi st = [ui]
               [ hLimitPercent 60 $ borderWithLabel titleSP $ controlBox st,
                 borderWithLabel titleHP $ hCenter $ vCenter helpBox
               ],
-          vLimitPercent 70 $ borderWithLabel titleMR $ resultBox st,
+          vLimitPercent 80 $ borderWithLabel titleMR $ resultBox st,
           borderWithLabel titleDI $ infoBox st <+> fill ' '
         ]
     titleSP = str "search param"
@@ -119,20 +121,17 @@ controlBox st = renderForm (st ^. searchForm)
 helpBox :: Widget Name
 helpBox =
   str $
-    "Tab:    next param\n"
-      <> "Space:  select param\n"
-      <> "Ctrl+S: search\n"
-      <> "Ctrl+N: switch to the next panel\n"
-      <> "Ctrl+P: switch to the previous panel\n"
-      <> "Arrow:  lookup detailed info\n"
-      <> "Esc:    quit"
+    "Tab:     next param\n"
+      <> "BackTap: previous param\n"
+      <> "Space:   select param\n"
+      <> "Ctrl+S:  search\n"
+      <> "Ctrl+N:  switch to the next panel\n"
+      <> "Arrow:   lookup detailed info\n"
+      <> "Esc:     quit"
 
 -- result box
 resultBox :: AppState -> Widget Name
-resultBox st = renderList listDrawResult True $ list ResultRegion l 2
-  where
-    -- according to AppState, do `searchCron`
-    l = Vec.fromList $ st ^. searchedResult
+resultBox st = renderList listDrawResult True $ st ^. searchedResultList
 
 -- info box
 infoBox :: AppState -> Widget Name
@@ -149,6 +148,7 @@ infoBox st =
 
 ----------------------------------------------------------------------------------------------------
 
+-- form builder
 mkForm :: Search -> Form Search e Name
 mkForm =
   newForm
@@ -158,24 +158,25 @@ mkForm =
       label "" @@= checkboxField selectCmdCol (SearchRegion SelectCmdField) "Cmd",
       labelP "" @@= checkboxField selectOutputCol (SearchRegion SelectOutputField) "Output",
       labelP "Conjunction" @@= radioField conjunction radioG,
-      labelP "Case sensitive" @@= checkboxField caseSensitive (SearchRegion CaseSensitiveField) ""
+      labelP "Case sensitive" @@= checkboxField caseSensitive (SearchRegion CaseSensitiveField) "",
+      labelI @@= checkboxField invisibleFocus (SearchRegion InvisibleField) ""
     ]
   where
     label s w = vLimit 1 (hLimit 20 $ str s <+> fill ' ') <+> w
     labelP s w = padBottom (Pad 1) $ label s w
+    labelI = withAttr invisibleFormFieldAttr
     radioG = [(AND, SearchRegion ConjAndField, "And"), (OR, SearchRegion ConjOrField, "Or")]
 
 -- draw an item in `[CronSchema]` list
 listDrawResult :: Bool -> CronSchema -> Widget Name
 listDrawResult sel cs =
-  let ws = if sel then s else u
+  let ws = if sel then s else str <$> c
    in hBox $ alignColumns columnAlignments columnWidths ws
   where
-    -- TODO: attrName cannot cover the whole list
     c = getCronStrings cs resultBoxColumns
     s = withAttr resultSelectedListAttr . str <$> c
-    u = withAttr resultListAttr . str <$> c
 
+-- TODO: fixed length?
 -- ["idx", "dag", "name", "sleeper", "input", "cmd", "output", "activate", "file"]
 columnWidths :: [Int]
 columnWidths = [5, 10, 15, 10, 20, 20, 20, 5, 20]
@@ -197,32 +198,24 @@ appEvent (VtyEvent (V.EvResize {})) = return ()
 appEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
 -- press Ctrl+N switch to next panel
 appEvent (VtyEvent (V.EvKey (V.KChar 'n') [V.MCtrl])) = do
-  r <- use focusRing
-  case F.focusGetCurrent r of
-    Just (SearchRegion _) -> focusRing %= F.focusSetCurrent ResultRegion
-    Just ResultRegion -> focusRing %= F.focusSetCurrent (SearchRegion StringField)
-    _ -> return ()
--- press Ctrl+P switch to previous panel
-appEvent (VtyEvent (V.EvKey (V.KChar 'p') [V.MCtrl])) = do
-  r <- use focusRing
-  case F.focusGetCurrent r of
-    Just (SearchRegion _) -> focusRing %= F.focusSetCurrent ResultRegion
-    Just ResultRegion -> focusRing %= F.focusSetCurrent (SearchRegion StringField)
+  st <- get
+  case F.focusGetCurrent $ st ^. focusRing of
+    Just (SearchRegion _) -> do
+      focusRing %= F.focusSetCurrent ResultRegion
+      modify $ searchForm %~ setFormFocus (SearchRegion InvisibleField)
+    Just ResultRegion -> do
+      focusRing %= F.focusSetCurrent (SearchRegion StringField)
+      modify $ searchForm %~ setFormFocus (SearchRegion StringField)
     _ -> return ()
 -- press Ctrl+S to search while in `SearchRegion`
-appEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
-  modify commitSearchRequest
+appEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) = modify commitSearchRequest
 -- other cases
 appEvent ev@(VtyEvent ve) = do
   r <- use focusRing
   case F.focusGetCurrent r of
-    -- handle `SearchRegion`
-    Just (SearchRegion _) ->
-      zoom searchForm $ handleFormEvent ev
-    -- handle `ResultRegion`
-    Just ResultRegion ->
-      -- TODO: not working?
-      zoom searchedResultList $ handleListEventVi handleListEvent ve
+    Just (SearchRegion _) -> zoom searchForm $ handleFormEvent ev
+    -- TODO: + handleListEvent
+    Just ResultRegion -> zoom searchedResultList $ handleListEvent ve
     _ -> return ()
 appEvent _ = return ()
 
@@ -234,6 +227,7 @@ commitSearchRequest st =
    in st
         & searchedResult .~ sr
         & searchedResultList .~ list ResultRegion (Vec.fromList sr) 2
+        & searchForm %~ setFormFocus (SearchRegion InvisibleField) -- set form focus to null
         & focusRing %~ F.focusSetCurrent ResultRegion -- jump to result region
 
 genSearchParam :: Search -> SearchParam
@@ -255,14 +249,16 @@ theMap =
       (editFocusedAttr, V.black `on` V.yellow),
       (listAttr, V.white `Brick.on` V.black),
       (listSelectedAttr, V.black `Brick.on` V.yellow),
+      (formAttr, V.white `Brick.on` V.black),
+      (focusedFormInputAttr, V.black `on` V.yellow),
       -- overwrite
+      (invisibleFormFieldAttr, fg V.black),
       (resultSelectedListAttr, V.black `on` V.yellow),
-      (detailSelectedListAttr, V.white `on` V.black),
-      (focusedFormInputAttr, V.black `on` V.yellow)
+      (detailSelectedListAttr, V.white `on` V.black)
     ]
 
-resultListAttr :: AttrName
-resultListAttr = listAttr <> attrName "resultList"
+invisibleFormFieldAttr :: AttrName
+invisibleFormFieldAttr = focusedFormInputAttr <> attrName "invisibleFormField"
 
 resultSelectedListAttr :: AttrName
 resultSelectedListAttr = listSelectedAttr <> attrName "resultSelectedList"
@@ -293,12 +289,14 @@ defaultSearch =
       _selectCmdCol = True,
       _selectOutputCol = True,
       _conjunction = OR,
-      _caseSensitive = False
+      _caseSensitive = False,
+      _invisibleFocus = False
     }
 
 focusRingList :: [Name]
 focusRingList =
   [ SearchRegion StringField,
+    SearchRegion SelectSleeperField,
     SearchRegion SelectInputField,
     SearchRegion SelectCmdField,
     SearchRegion SelectOutputField,
