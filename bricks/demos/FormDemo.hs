@@ -109,7 +109,7 @@ draw f = [C.vCenter $ C.hCenter form <=> C.hCenter help]
     body =
       str $
         "- Name is free-form text\n"
-          <> "- Age must be an integer (try entering an\n)"
+          <> "- Age must be an integer (try entering an\n"
           <> "  invalid age!)\n"
           <> "- Handedness selects from a list of options\n"
           <> "- The last option is a checkbox\n"

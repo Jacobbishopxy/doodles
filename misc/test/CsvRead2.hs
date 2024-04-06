@@ -19,8 +19,8 @@ data CronSchema = CronSchema
     input :: String,
     cmd :: String,
     output :: String,
-    activate :: Bool,
-    retries :: Float
+    activate :: Bool
+    -- retries :: Float
   }
   deriving (Show)
 
@@ -54,15 +54,14 @@ parseRecord header row =
       input = T.unpack $ g "input",
       cmd = T.unpack $ g "cmd",
       output = T.unpack $ g "output",
-      activate = readBool $ g "activate",
-      retries = readFloat $ g "retries"
+      activate = readBool $ g "activate"
     }
   where
     g = getField header row
-    readFloat :: T.Text -> Float
-    readFloat s = case reads (T.unpack s) of
-      [(x, "")] -> x
-      _ -> 0
+    -- readFloat :: T.Text -> Float
+    -- readFloat s = case reads (T.unpack s) of
+    --   [(x, "")] -> x
+    --   _ -> 0
     readBool :: T.Text -> Bool
     readBool "TRUE" = True
     readBool _ = False

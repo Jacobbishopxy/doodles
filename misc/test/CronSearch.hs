@@ -11,14 +11,9 @@ module Main where
 import Brick
 import Brick.Focus qualified as F
 import Brick.Forms
-  ( checkboxField,
-    editTextField,
-    newForm,
-    radioField,
-    renderForm,
-    (@@=),
-  )
 import Brick.Widgets.Border
+import Brick.Widgets.Center (hCenter, vCenter)
+import Brick.Widgets.Edit (editAttr, editFocusedAttr)
 import Brick.Widgets.List
 import Brick.Widgets.Table
 import Control.Monad (void)
@@ -31,6 +26,7 @@ import GHC.Generics (Generic)
 import Graphics.Vty qualified as V
 import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro
+import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
 import MiscLib.CronSchema
 import System.Environment (getArgs)
@@ -41,9 +37,19 @@ import System.Environment (getArgs)
 
 -- Source Name
 data Name
-  = FormRegion
+  = SearchRegion SearchRegion
   | ResultRegion
   | DetailRegion
+  deriving (Eq, Ord, Show)
+
+data SearchRegion
+  = StringField
+  | SelectInputField
+  | SelectCmdField
+  | SelectOutputField
+  | ConjAndField
+  | ConjOrField
+  | CaseSensitiveField
   deriving (Eq, Ord, Show)
 
 data ColsField = InputCol | CmdCol | OutputCol
@@ -52,26 +58,33 @@ data ColsField = InputCol | CmdCol | OutputCol
 data ConjField = ConjAnd | ConjOr
   deriving (Show, Ord, Eq)
 
-data AppState = AppState
-  { _focusRing :: F.FocusRing Name,
-    -- string to search
-    _searchString :: T.Text,
+data Search = Search
+  { _searchString :: T.Text,
     -- columns to search
     _selectInputCol :: Bool,
     _selectCmdCol :: Bool,
     _selectOutputCol :: Bool,
     -- conjunction
-    _conj :: Conj,
+    _conjunction :: Conj,
     -- ignore case
-    _caseSensitive :: Bool,
+    _caseSensitive :: Bool
+  }
+
+makeLenses ''Search
+
+data AppState = AppState
+  { _focusRing :: F.FocusRing Name,
+    -- search form
+    _search :: Search,
+    _searchForm :: Form Search () Name,
     -- all crons
     _allCrons :: [CronSchema],
     -- searched result
     _searchedResult :: [CronSchema],
+    _searchedResultList :: List Name CronSchema,
     -- searched result
     _selectedResult :: Int
   }
-  deriving (Show)
 
 makeLenses ''AppState
 
@@ -80,7 +93,7 @@ makeLenses ''AppState
 ----------------------------------------------------------------------------------------------------
 
 resultBoxColumns :: [String]
-resultBoxColumns = ["idx", "dag", "task", "sleeper", "input", "cmd", "output", "activate", "file"]
+resultBoxColumns = ["idx", "dag", "name", "sleeper", "input", "cmd", "output", "activate", "file"]
 
 ----------------------------------------------------------------------------------------------------
 -- UI
@@ -91,12 +104,13 @@ drawUi st = [ui]
   where
     ui =
       vBox
-        [ vLimitPercent 30 $
+        [ vLimit 13 $
             hBox
-              [ hLimitPercent 50 $ borderWithLabel titleSP $ controlBox st <+> fill ' ',
-                borderWithLabel titleDI $ infoBox st <+> fill ' '
+              [ hLimitPercent 70 $ borderWithLabel titleSP $ controlBox st,
+                hCenter $ vCenter helpBox
               ],
-          borderWithLabel titleMR $ resultBox st
+          vLimitPercent 70 $ borderWithLabel titleMR $ resultBox st,
+          borderWithLabel titleDI $ infoBox st <+> fill ' '
         ]
     titleSP = str "search param"
     titleDI = str "detailed info"
@@ -104,19 +118,17 @@ drawUi st = [ui]
 
 -- control box
 controlBox :: AppState -> Widget Name
-controlBox =
-  renderForm
-    . newForm
-      [ labelP "String" @@= editTextField searchString FormRegion (Just 1),
-        label "Select columns" @@= checkboxField selectInputCol FormRegion "Input",
-        label "" @@= checkboxField selectCmdCol FormRegion "Cmd",
-        labelP "" @@= checkboxField selectOutputCol FormRegion "Output",
-        labelP "Conjunction" @@= radioField conj [(AND, FormRegion, "And"), (OR, FormRegion, "Or")],
-        labelP "Case sensitive" @@= checkboxField caseSensitive FormRegion ""
-      ]
-  where
-    label s w = vLimit 1 (hLimit 15 $ str s <+> fill ' ') <+> w
-    labelP s w = padBottom (Pad 1) $ label s w
+controlBox st = renderForm (st ^. searchForm)
+
+-- help box
+helpBox :: Widget Name
+helpBox =
+  str $
+    "Keys:\n"
+      <> "Ctrl+S: search\n"
+      <> "Ctrl+N: switch to next panel\n"
+      <> "Ctrl+P: switch to previous panel\n"
+      <> "Esc:    quit"
 
 -- result box
 resultBox :: AppState -> Widget Name
@@ -130,10 +142,11 @@ infoBox :: AppState -> Widget Name
 infoBox st =
   case (st ^. searchedResult) !? (st ^. selectedResult) of
     Nothing -> emptyWidget
-    Just cs -> renderList listDrawInfo False $ list ResultRegion (l cs) 1
+    Just cs -> renderList listDrawInfo False $ list DetailRegion (l cs) 1
   where
     l :: CronSchema -> Vec.Vector String
-    l = Vec.fromList . flip getCronStrings resultBoxColumns
+    -- TODO: max display length
+    l = Vec.fromList . flip genCronStrings resultBoxColumns
 
 -- safe `!!`
 (!?) :: [a] -> Int -> Maybe a
@@ -150,24 +163,40 @@ xs !? n
         xs
         n
 
+genCronStrings :: CronSchema -> [String] -> [String]
+genCronStrings cs c = [c' <> ": " <> s' | (c', s') <- zip c (getCronStrings cs c)]
+
 ----------------------------------------------------------------------------------------------------
+
+mkForm :: Search -> Form Search e Name
+mkForm =
+  newForm
+    [ labelP "Lookup string" @@= editTextField searchString (SearchRegion StringField) (Just 1),
+      label "Select columns" @@= checkboxField selectInputCol (SearchRegion SelectInputField) "Input",
+      label "" @@= checkboxField selectCmdCol (SearchRegion SelectCmdField) "Cmd",
+      labelP "" @@= checkboxField selectOutputCol (SearchRegion SelectOutputField) "Output",
+      labelP "Conjunction" @@= radioField conjunction radioG,
+      labelP "Case sensitive" @@= checkboxField caseSensitive (SearchRegion CaseSensitiveField) ""
+    ]
+  where
+    label s w = vLimit 1 (hLimit 15 $ str s <+> fill ' ') <+> hLimit 100 w
+    labelP s w = padBottom (Pad 1) $ label s w
+    radioG = [(AND, SearchRegion ConjAndField, "And"), (OR, SearchRegion ConjOrField, "Or")]
 
 -- draw an item in `[CronSchema]` list
 listDrawResult :: Bool -> CronSchema -> Widget Name
 listDrawResult sel cs =
-  let ws = if sel then withAttr selectedResultAttr . str <$> c else str <$> c
-   in hLimit 100 $ hBox $ alignColumns columnAlignments columnWidths ws
+  let ws = if sel then s else u
+   in hLimitPercent 100 $ hBox $ alignColumns columnAlignments columnWidths ws
   where
+    -- TODO: c is `[String]`, attrName cannot cover list
     c = getCronStrings cs resultBoxColumns
+    s = withAttr resultSelectedListAttr . str <$> c
+    u = withAttr resultListAttr . str <$> c
 
-selectedResultAttr :: AttrName
-selectedResultAttr = attrName "selectedResult"
-
-nullCellAttr :: AttrName
-nullCellAttr = attrName "nullCell"
-
+-- ["idx", "dag", "name", "sleeper", "input", "cmd", "output", "activate", "file"]
 columnWidths :: [Int]
-columnWidths = replicate (length resultBoxColumns) 10
+columnWidths = [5, 10, 15, 10, 20, 20, 20, 5, 20]
 
 columnAlignments :: [ColumnAlignment]
 columnAlignments = replicate (length resultBoxColumns) AlignLeft
@@ -179,17 +208,51 @@ listDrawInfo _ = str
 -- Event
 ----------------------------------------------------------------------------------------------------
 
-appEvent :: BrickEvent Name e -> EventM Name AppState ()
-appEvent = undefined
+appEvent :: BrickEvent Name () -> EventM Name AppState ()
+-- quit
+appEvent (VtyEvent (V.EvResize {})) = return ()
+appEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
+-- switch between `Name`
+appEvent (VtyEvent (V.EvKey (V.KChar 'n') [V.MCtrl])) = do
+  r <- use focusRing
+  case F.focusGetCurrent r of
+    Just (SearchRegion _) -> focusRing %= F.focusSetCurrent ResultRegion
+    Just ResultRegion -> focusRing %= F.focusSetCurrent (SearchRegion StringField)
+    _ -> return ()
+appEvent (VtyEvent (V.EvKey (V.KChar 'p') [V.MCtrl])) = do
+  r <- use focusRing
+  case F.focusGetCurrent r of
+    Just (SearchRegion _) -> focusRing %= F.focusSetCurrent ResultRegion
+    Just ResultRegion -> focusRing %= F.focusSetCurrent (SearchRegion StringField)
+    _ -> return ()
+-- press Enter to search while in `SearchRegion`
+appEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
+  -- TODO: state change?
+  modify commitSearchRequest
+-- other cases
+appEvent ev@(VtyEvent ve) = do
+  r <- use focusRing
+  case F.focusGetCurrent r of
+    -- handle `SearchRegion`
+    Just (SearchRegion _) ->
+      -- TODO: not working?
+      zoom searchForm $ handleFormEvent ev
+    -- handle `ResultRegion`
+    Just ResultRegion ->
+      -- TODO: not working?
+      zoom searchedResultList $ handleListEvent ve
+    _ -> return ()
+appEvent _ = return ()
 
 -- according to the current form states, update filtered result
-filterSelectedFields :: AppState -> AppState
-filterSelectedFields st =
-  let flt = [st ^. selectInputCol, st ^. selectCmdCol, st ^. selectOutputCol]
+commitSearchRequest :: AppState -> AppState
+commitSearchRequest st =
+  let flt = [st ^. search . selectInputCol, st ^. search . selectCmdCol, st ^. search . selectOutputCol]
       cols = ["input", "cmd", "output"]
       sf = [c | (c, f) <- zip cols flt, f]
-      sp = SearchParam sf (st ^. conj) (T.unpack $ st ^. searchString)
-   in st & searchedResult .~ searchCron sp (st ^. allCrons)
+      sp = SearchParam sf (st ^. search . conjunction) (T.unpack $ st ^. search . searchString)
+      sr = searchCron sp (st ^. allCrons)
+   in st & searchedResult .~ sr & searchedResultList .~ list ResultRegion (Vec.fromList sr) 1
 
 ----------------------------------------------------------------------------------------------------
 -- Attr
@@ -199,16 +262,25 @@ theMap :: AttrMap
 theMap =
   attrMap
     V.defAttr
-    [ (attrName "button-input", V.white `on` V.cyan),
-      (attrName "button-cmd", V.white `on` V.green),
-      (attrName "button-output", V.white `on` V.blue)
+    [ (editAttr, V.white `on` V.black),
+      (editFocusedAttr, V.black `on` V.yellow),
+      -- (listAttr, V.white `on` V.blue),
+      (resultListAttr, V.white `on` V.blue),
+      (resultSelectedListAttr, V.blue `on` V.white),
+      (focusedFormInputAttr, V.black `on` V.yellow)
     ]
+
+resultListAttr :: AttrName
+resultListAttr = listAttr <> attrName "resultList"
+
+resultSelectedListAttr :: AttrName
+resultSelectedListAttr = listSelectedAttr <> attrName "resultSelectedList"
 
 ----------------------------------------------------------------------------------------------------
 -- App
 ----------------------------------------------------------------------------------------------------
 
-app :: App AppState e Name
+app :: App AppState () Name
 app =
   App
     { appDraw = drawUi,
@@ -218,18 +290,38 @@ app =
       appAttrMap = const theMap
     }
 
-initialState :: [CronSchema] -> AppState
-initialState cs =
-  AppState
-    { _focusRing = F.focusRing [FormRegion, ResultRegion],
-      _searchString = "",
+defaultSearch :: Search
+defaultSearch =
+  Search
+    { _searchString = "",
       _selectInputCol = True,
       _selectCmdCol = True,
       _selectOutputCol = True,
-      _conj = AND,
-      _caseSensitive = False,
+      _conjunction = AND,
+      _caseSensitive = False
+    }
+
+focusRingList :: [Name]
+focusRingList =
+  [ SearchRegion StringField,
+    SearchRegion SelectInputField,
+    SearchRegion SelectCmdField,
+    SearchRegion SelectOutputField,
+    SearchRegion ConjAndField,
+    SearchRegion ConjOrField,
+    SearchRegion CaseSensitiveField,
+    ResultRegion
+  ]
+
+initialState :: [CronSchema] -> AppState
+initialState cs =
+  AppState
+    { _focusRing = F.focusRing focusRingList,
+      _search = defaultSearch,
+      _searchForm = mkForm defaultSearch,
       _allCrons = cs,
       _searchedResult = [],
+      _searchedResultList = list ResultRegion Vec.empty 0,
       _selectedResult = 0
     }
 
@@ -253,6 +345,8 @@ instance FromJSON CronSettings
 main :: IO ()
 main = do
   args <- getArgs
+
+  -- read yaml file and load all crons
   let yamlPath = case args of
         (x : _) -> x
         [] -> "./cron_settings.yml"
@@ -260,7 +354,13 @@ main = do
   let s = fromRight (error "check yaml if exists") p
   crons <- getAllCrons $ lookupDirs s
 
-  let vtyBuilder = mkVty V.defaultConfig
+  -- build vty
+  let vtyBuilder = do
+        v <- mkVty V.defaultConfig
+        -- TODO: not working
+        -- enable Mouse control
+        V.setMode (V.outputIface v) V.Mouse True
+        return v
   initialVty <- vtyBuilder
 
   -- Tui
