@@ -105,7 +105,7 @@ drawUi st = [ui <=> hint]
 
 listDrawElement :: Int -> Bool -> Row -> Widget Name
 listDrawElement colIdx sel row =
-  let ws = (\c -> if c == "" then withDefAttr nullCellAttr (str "null") else str c) <$> row
+  let ws = (\c -> if c == "" then withDefAttr nullCellAttr $ str "null" else str c) <$> row
       len = Prelude.length row
       maybeSelect es = selectCell <$> Prelude.zip [0 ..] es
       selectCell (i, w) = if sel && i == colIdx then withDefAttr selectedCellAttr w else w
@@ -191,7 +191,7 @@ theMap =
     V.defAttr
     [ (editAttr, V.black `on` V.cyan),
       (editFocusedAttr, V.black `on` V.yellow),
-      (listAttr, V.white `on` V.blue),
+      -- (listAttr, V.white `on` V.blue),
       (selectedCellAttr, V.blue `on` V.white),
       -- null cell
       (nullCellAttr, style V.italic)

@@ -44,6 +44,7 @@ data Name
 
 data SearchRegion
   = StringField
+  | SelectSleeperField
   | SelectInputField
   | SelectCmdField
   | SelectOutputField
@@ -97,15 +98,16 @@ drawUi st = [ui]
   where
     ui =
       vBox
-        [ vLimit 13 $
+        [ vLimit 14 $
             hBox
-              [ hLimitPercent 70 $ borderWithLabel titleSP $ controlBox st,
-                hCenter $ vCenter helpBox
+              [ hLimitPercent 60 $ borderWithLabel titleSP $ controlBox st,
+                borderWithLabel titleHP $ hCenter $ vCenter helpBox
               ],
           vLimitPercent 70 $ borderWithLabel titleMR $ resultBox st,
           borderWithLabel titleDI $ infoBox st <+> fill ' '
         ]
     titleSP = str "search param"
+    titleHP = str "help"
     titleDI = str "detailed info"
     titleMR = str "matched result"
 
@@ -117,17 +119,17 @@ controlBox st = renderForm (st ^. searchForm)
 helpBox :: Widget Name
 helpBox =
   str $
-    "Keys:\n"
-      <> "Tab:    next param\n"
-      <> "Space:  select/unselect\n"
+    "Tab:    next param\n"
+      <> "Space:  select param\n"
       <> "Ctrl+S: search\n"
-      <> "Ctrl+N: switch to next panel\n"
-      <> "Ctrl+P: switch to previous panel\n"
+      <> "Ctrl+N: switch to the next panel\n"
+      <> "Ctrl+P: switch to the previous panel\n"
+      <> "Arrow:  lookup detailed info\n"
       <> "Esc:    quit"
 
 -- result box
 resultBox :: AppState -> Widget Name
-resultBox st = renderList listDrawResult True $ list ResultRegion l 1
+resultBox st = renderList listDrawResult True $ list ResultRegion l 2
   where
     -- according to AppState, do `searchCron`
     l = Vec.fromList $ st ^. searchedResult
@@ -137,14 +139,13 @@ infoBox :: AppState -> Widget Name
 infoBox st =
   case (st ^. searchedResult) !? (st ^. selectedResult) of
     Nothing -> emptyWidget
-    Just cs -> renderList listDrawInfo False $ list DetailRegion (l cs) 0
+    Just cs -> renderList listDrawInfo False $ list DetailRegion (l cs) 2
   where
+    -- generate info list
+    g :: CronSchema -> [String] -> [String]
+    g cs c = [c' <> ": " <> s' | (c', s') <- zip c (getCronStrings cs c)]
     l :: CronSchema -> Vec.Vector String
-    -- TODO: max display length
-    l = Vec.fromList . flip genCronStrings resultBoxColumns
-
-genCronStrings :: CronSchema -> [String] -> [String]
-genCronStrings cs c = [c' <> ": " <> s' | (c', s') <- zip c (getCronStrings cs c)]
+    l = Vec.fromList . flip g resultBoxColumns
 
 ----------------------------------------------------------------------------------------------------
 
@@ -152,14 +153,15 @@ mkForm :: Search -> Form Search e Name
 mkForm =
   newForm
     [ labelP "Lookup string" @@= editTextField searchString (SearchRegion StringField) (Just 1),
-      label "Select columns" @@= checkboxField selectInputCol (SearchRegion SelectInputField) "Input",
+      label "Select columns" @@= checkboxField selectSleeperCol (SearchRegion SelectSleeperField) "Sleeper",
+      label "" @@= checkboxField selectInputCol (SearchRegion SelectInputField) "Input",
       label "" @@= checkboxField selectCmdCol (SearchRegion SelectCmdField) "Cmd",
       labelP "" @@= checkboxField selectOutputCol (SearchRegion SelectOutputField) "Output",
       labelP "Conjunction" @@= radioField conjunction radioG,
       labelP "Case sensitive" @@= checkboxField caseSensitive (SearchRegion CaseSensitiveField) ""
     ]
   where
-    label s w = vLimit 1 (hLimit 15 $ str s <+> fill ' ') <+> hLimit 100 w
+    label s w = vLimit 1 (hLimit 20 $ str s <+> fill ' ') <+> w
     labelP s w = padBottom (Pad 1) $ label s w
     radioG = [(AND, SearchRegion ConjAndField, "And"), (OR, SearchRegion ConjOrField, "Or")]
 
@@ -169,7 +171,7 @@ listDrawResult sel cs =
   let ws = if sel then s else u
    in hBox $ alignColumns columnAlignments columnWidths ws
   where
-    -- TODO: c is `[String]`, attrName cannot cover list
+    -- TODO: attrName cannot cover the whole list
     c = getCronStrings cs resultBoxColumns
     s = withAttr resultSelectedListAttr . str <$> c
     u = withAttr resultListAttr . str <$> c
@@ -182,6 +184,7 @@ columnAlignments :: [ColumnAlignment]
 columnAlignments = replicate (length resultBoxColumns) AlignLeft
 
 listDrawInfo :: Bool -> String -> Widget Name
+listDrawInfo True = withAttr detailSelectedListAttr . str
 listDrawInfo _ = str
 
 ----------------------------------------------------------------------------------------------------
@@ -215,7 +218,6 @@ appEvent ev@(VtyEvent ve) = do
   case F.focusGetCurrent r of
     -- handle `SearchRegion`
     Just (SearchRegion _) ->
-      -- TODO: not working?
       zoom searchForm $ handleFormEvent ev
     -- handle `ResultRegion`
     Just ResultRegion ->
@@ -231,7 +233,7 @@ commitSearchRequest st =
       sr = searchCron sp (st ^. allCrons)
    in st
         & searchedResult .~ sr
-        & searchedResultList .~ list ResultRegion (Vec.fromList sr) 1
+        & searchedResultList .~ list ResultRegion (Vec.fromList sr) 2
         & focusRing %~ F.focusSetCurrent ResultRegion -- jump to result region
 
 genSearchParam :: Search -> SearchParam
@@ -251,19 +253,22 @@ theMap =
     V.defAttr
     [ (editAttr, V.white `on` V.black),
       (editFocusedAttr, V.black `on` V.yellow),
-      -- (listAttr, V.white `on` V.blue),
-      (resultListAttr, V.white `on` V.blue),
-      (resultSelectedListAttr, V.blue `on` V.white),
+      (listAttr, V.white `Brick.on` V.black),
+      (listSelectedAttr, V.black `Brick.on` V.yellow),
+      -- overwrite
+      (resultSelectedListAttr, V.black `on` V.yellow),
+      (detailSelectedListAttr, V.white `on` V.black),
       (focusedFormInputAttr, V.black `on` V.yellow)
     ]
 
 resultListAttr :: AttrName
--- resultListAttr = attrName "resultList"
 resultListAttr = listAttr <> attrName "resultList"
 
 resultSelectedListAttr :: AttrName
--- resultSelectedListAttr = listSelectedAttr <> attrName "resultSelectedList"
-resultSelectedListAttr = attrName "resultSelectedList"
+resultSelectedListAttr = listSelectedAttr <> attrName "resultSelectedList"
+
+detailSelectedListAttr :: AttrName
+detailSelectedListAttr = listSelectedAttr <> attrName "detailSelectedList"
 
 ----------------------------------------------------------------------------------------------------
 -- App
@@ -287,7 +292,7 @@ defaultSearch =
       _selectInputCol = True,
       _selectCmdCol = True,
       _selectOutputCol = True,
-      _conjunction = AND,
+      _conjunction = OR,
       _caseSensitive = False
     }
 
