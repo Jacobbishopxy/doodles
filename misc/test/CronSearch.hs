@@ -38,6 +38,7 @@ import System.Environment (getArgs)
 -- Source Name
 data Name
   = SearchRegion SearchRegion
+  | ResultHeaderRegion
   | ResultRegion
   | DetailRegion
   deriving (Eq, Ord, Show)
@@ -131,7 +132,12 @@ helpBox =
 
 -- result box
 resultBox :: AppState -> Widget Name
-resultBox st = renderList listDrawResult True $ st ^. searchedResultList
+resultBox st =
+  vLimit 1 (renderList listDrawResultHeader False h)
+    <=> renderList listDrawResult True (st ^. searchedResultList)
+  where
+    -- header
+    h = list ResultHeaderRegion (Vec.fromList [resultBoxColumns]) 1
 
 -- info box
 infoBox :: AppState -> Widget Name
@@ -167,6 +173,14 @@ mkForm =
     labelI = withAttr invisibleFormFieldAttr
     radioG = [(AND, SearchRegion ConjAndField, "And"), (OR, SearchRegion ConjOrField, "Or")]
 
+-- result header
+listDrawResultHeader :: Bool -> [String] -> Widget Name
+listDrawResultHeader _ cs =
+  withAttr resultHeaderListAttr $
+    hBox $
+      alignColumns columnAlignments columnWidths $
+        str <$> cs
+
 -- draw an item in `[CronSchema]` list
 listDrawResult :: Bool -> CronSchema -> Widget Name
 listDrawResult sel cs =
@@ -176,10 +190,10 @@ listDrawResult sel cs =
     c = getCronStrings cs resultBoxColumns
     s = withAttr resultSelectedListAttr . str <$> c
 
--- TODO: fixed length?
--- ["idx", "dag", "name", "sleeper", "input", "cmd", "output", "activate", "file"]
+-- fixed length
+-- ["idx", "dag", "name", "sleeper", "input", "cmd", "output", "activate", "fPath"]
 columnWidths :: [Int]
-columnWidths = [5, 10, 15, 10, 20, 20, 20, 5, 20]
+columnWidths = [5, 15, 15, 10, 40, 40, 40, 5, 40]
 
 columnAlignments :: [ColumnAlignment]
 columnAlignments = replicate (length resultBoxColumns) AlignLeft
@@ -214,7 +228,7 @@ appEvent ev@(VtyEvent ve) = do
   r <- use focusRing
   case F.focusGetCurrent r of
     Just (SearchRegion _) -> zoom searchForm $ handleFormEvent ev
-    -- TODO: + handleListEvent
+    -- TODO: + handleListEvent, arrow up/down effects detailed info
     Just ResultRegion -> zoom searchedResultList $ handleListEvent ve
     _ -> return ()
 appEvent _ = return ()
@@ -253,12 +267,16 @@ theMap =
       (focusedFormInputAttr, V.black `on` V.yellow),
       -- overwrite
       (invisibleFormFieldAttr, fg V.black),
+      (resultHeaderListAttr, V.white `on` V.blue),
       (resultSelectedListAttr, V.black `on` V.yellow),
       (detailSelectedListAttr, V.white `on` V.black)
     ]
 
 invisibleFormFieldAttr :: AttrName
 invisibleFormFieldAttr = focusedFormInputAttr <> attrName "invisibleFormField"
+
+resultHeaderListAttr :: AttrName
+resultHeaderListAttr = listAttr <> listSelectedAttr <> attrName "resultHeaderList"
 
 resultSelectedListAttr :: AttrName
 resultSelectedListAttr = listSelectedAttr <> attrName "resultSelectedList"
