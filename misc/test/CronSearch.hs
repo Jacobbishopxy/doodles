@@ -11,11 +11,21 @@ module Main where
 import Brick
 import Brick.Focus qualified as F
 import Brick.Forms
-import Brick.Widgets.Border
+import Brick.Widgets.Border (borderWithLabel)
 import Brick.Widgets.Center (hCenter, vCenter)
 import Brick.Widgets.Edit (editAttr, editFocusedAttr)
 import Brick.Widgets.List
+  ( List,
+    handleListEvent,
+    list,
+    listAttr,
+    listSelectedAttr,
+    renderList,
+  )
 import Brick.Widgets.Table
+  ( ColumnAlignment (AlignLeft),
+    alignColumns,
+  )
 import Control.Monad (void)
 import CronSearchUtil
 import Data.Either (fromRight)
@@ -72,6 +82,7 @@ data Search = Search
     _conjunction :: Conj,
     -- ignore case
     _caseSensitive :: Bool,
+    -- hidden widget, used when switched out from SearchRegion
     _invisibleFocus :: Bool
   }
 
@@ -133,11 +144,17 @@ helpBox =
 -- result box
 resultBox :: AppState -> Widget Name
 resultBox st =
-  vLimit 1 (renderList listDrawResultHeader False h)
-    <=> renderList listDrawResult True (st ^. searchedResultList)
+  vLimit 1 (renderList listDrawResultHeader False h) <=> r
   where
     -- header
     h = list ResultHeaderRegion (Vec.fromList [resultBoxColumns]) 1
+    l = st ^. searchedResultList
+    -- if not on focus, disable highlight
+    r = case F.focusGetCurrent $ st ^. focusRing of
+      -- when focus ring on
+      Just ResultRegion -> renderList listDrawResult True l
+      -- when focus ring off
+      _ -> withAttr resultUnselectedListAttr $ renderList listDrawResult' True l
 
 -- info box
 infoBox :: AppState -> Widget Name
@@ -190,6 +207,12 @@ listDrawResult sel cs =
     c = getCronStrings cs resultBoxColumns
     s = withAttr resultSelectedListAttr . str <$> c
 
+listDrawResult' :: Bool -> CronSchema -> Widget Name
+listDrawResult' _ cs =
+  hBox $ alignColumns columnAlignments columnWidths $ str <$> c
+  where
+    c = getCronStrings cs resultBoxColumns
+
 -- fixed length
 -- ["idx", "dag", "name", "sleeper", "input", "cmd", "output", "activate", "fPath"]
 columnWidths :: [Int]
@@ -208,12 +231,11 @@ listDrawInfo _ = str
 
 appEvent :: BrickEvent Name () -> EventM Name AppState ()
 -- quit
-appEvent (VtyEvent (V.EvResize {})) = return ()
 appEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
 -- press Ctrl+N switch to next panel
 appEvent (VtyEvent (V.EvKey (V.KChar 'n') [V.MCtrl])) = do
-  st <- get
-  case F.focusGetCurrent $ st ^. focusRing of
+  r <- use focusRing
+  case F.focusGetCurrent r of
     Just (SearchRegion _) -> do
       focusRing %= F.focusSetCurrent ResultRegion
       modify $ searchForm %~ setFormFocus (SearchRegion InvisibleField)
@@ -228,8 +250,17 @@ appEvent ev@(VtyEvent ve) = do
   r <- use focusRing
   case F.focusGetCurrent r of
     Just (SearchRegion _) -> zoom searchForm $ handleFormEvent ev
-    -- TODO: + handleListEvent, arrow up/down effects detailed info
-    Just ResultRegion -> zoom searchedResultList $ handleListEvent ve
+    Just ResultRegion -> do
+      zoom searchedResultList $ handleListEvent ve
+      -- arrow up/down effects detailed info
+      case ve of
+        (V.EvKey V.KUp []) ->
+          modify $ \st ->
+            if st ^. selectedResult > 0 then st & selectedResult -~ 1 else st
+        (V.EvKey V.KDown []) ->
+          modify $ \st ->
+            if st ^. selectedResult < length (st ^. searchedResult) - 1 then st & selectedResult +~ 1 else st
+        _ -> return ()
     _ -> return ()
 appEvent _ = return ()
 
@@ -269,6 +300,7 @@ theMap =
       (invisibleFormFieldAttr, fg V.black),
       (resultHeaderListAttr, V.white `on` V.blue),
       (resultSelectedListAttr, V.black `on` V.yellow),
+      (resultUnselectedListAttr, V.white `on` V.black),
       (detailSelectedListAttr, V.white `on` V.black)
     ]
 
@@ -280,6 +312,9 @@ resultHeaderListAttr = listAttr <> listSelectedAttr <> attrName "resultHeaderLis
 
 resultSelectedListAttr :: AttrName
 resultSelectedListAttr = listSelectedAttr <> attrName "resultSelectedList"
+
+resultUnselectedListAttr :: AttrName
+resultUnselectedListAttr = listAttr <> listSelectedAttr <> attrName "resultUnselectedList"
 
 detailSelectedListAttr :: AttrName
 detailSelectedListAttr = listSelectedAttr <> attrName "detailSelectedList"
