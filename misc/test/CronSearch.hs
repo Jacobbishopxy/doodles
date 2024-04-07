@@ -29,6 +29,7 @@ import Brick.Widgets.Table
 import Control.Monad (void)
 import CronSearchUtil
 import Data.Either (fromRight)
+import Data.List (elemIndex)
 import Data.Text qualified as T
 import Data.Vector qualified as Vec
 import Data.Yaml qualified as Y
@@ -133,12 +134,10 @@ controlBox st = renderForm (st ^. searchForm)
 helpBox :: Widget Name
 helpBox =
   str $
-    "Tab:     next param\n"
-      <> "BackTap: previous param\n"
+    "Arrow:   move up/down\n"
       <> "Space:   select param\n"
-      <> "Ctrl+S:  search\n"
-      <> "Ctrl+N:  switch to the next panel\n"
-      <> "Arrow:   lookup detailed info\n"
+      <> "Enter:   search\n"
+      <> "Tab:     switch panel\n"
       <> "Esc:     quit"
 
 -- result box
@@ -232,8 +231,57 @@ listDrawInfo _ = str
 appEvent :: BrickEvent Name () -> EventM Name AppState ()
 -- quit
 appEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
--- press Ctrl+N switch to next panel
-appEvent (VtyEvent (V.EvKey (V.KChar 'n') [V.MCtrl])) = do
+-- press Tab/BackTab switch to next panel
+appEvent (VtyEvent (V.EvKey (V.KChar '\t') [])) = switchRegion
+appEvent (VtyEvent (V.EvKey V.KBackTab [])) = switchRegion
+-- press Enter to search while in `SearchRegion`
+appEvent (VtyEvent (V.EvKey V.KEnter [])) = do
+  r <- use focusRing
+  case F.focusGetCurrent r of
+    Just (SearchRegion _) -> modify commitSearchRequest
+    _ -> return ()
+-- press arrow Up
+appEvent (VtyEvent k@(V.EvKey V.KUp [])) = do
+  r <- use focusRing
+  case F.focusGetCurrent r of
+    -- arrow up/down effects detailed info
+    Just ResultRegion -> do
+      zoom searchedResultList $ handleListEvent k
+      modify $ \st ->
+        if st ^. selectedResult > 0 then st & selectedResult -~ 1 else st
+    -- move to the previous form focus
+    Just (SearchRegion f) -> do
+      let f' = SearchRegion $ formFocusRingLoop f
+      focusRing %= F.focusSetCurrent f'
+      modify $ searchForm %~ setFormFocus f'
+    _ -> return ()
+-- press arrow Down
+appEvent (VtyEvent k@(V.EvKey V.KDown [])) = do
+  r <- use focusRing
+  case F.focusGetCurrent r of
+    -- arrow up/down effects detailed info
+    Just ResultRegion -> do
+      zoom searchedResultList $ handleListEvent k
+      modify $ \st ->
+        if st ^. selectedResult < length (st ^. searchedResult) - 1 then st & selectedResult +~ 1 else st
+    -- move to the next form focus
+    Just (SearchRegion f) -> do
+      let f' = SearchRegion $ formFocusRingLoop' f
+      focusRing %= F.focusSetCurrent f'
+      modify $ searchForm %~ setFormFocus f'
+    _ -> return ()
+-- other cases
+appEvent ev@(VtyEvent ve) = do
+  r <- use focusRing
+  case F.focusGetCurrent r of
+    Just (SearchRegion _) -> zoom searchForm $ handleFormEvent ev
+    Just ResultRegion -> zoom searchedResultList $ handleListEvent ve
+    _ -> return ()
+appEvent _ = return ()
+
+-- switch between SearchRegion and ResultRegion
+switchRegion :: EventM Name AppState ()
+switchRegion = do
   r <- use focusRing
   case F.focusGetCurrent r of
     Just (SearchRegion _) -> do
@@ -243,26 +291,6 @@ appEvent (VtyEvent (V.EvKey (V.KChar 'n') [V.MCtrl])) = do
       focusRing %= F.focusSetCurrent (SearchRegion StringField)
       modify $ searchForm %~ setFormFocus (SearchRegion StringField)
     _ -> return ()
--- press Ctrl+S to search while in `SearchRegion`
-appEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) = modify commitSearchRequest
--- other cases
-appEvent ev@(VtyEvent ve) = do
-  r <- use focusRing
-  case F.focusGetCurrent r of
-    Just (SearchRegion _) -> zoom searchForm $ handleFormEvent ev
-    Just ResultRegion -> do
-      zoom searchedResultList $ handleListEvent ve
-      -- arrow up/down effects detailed info
-      case ve of
-        (V.EvKey V.KUp []) ->
-          modify $ \st ->
-            if st ^. selectedResult > 0 then st & selectedResult -~ 1 else st
-        (V.EvKey V.KDown []) ->
-          modify $ \st ->
-            if st ^. selectedResult < length (st ^. searchedResult) - 1 then st & selectedResult +~ 1 else st
-        _ -> return ()
-    _ -> return ()
-appEvent _ = return ()
 
 -- according to the current form states, update filtered result
 commitSearchRequest :: AppState -> AppState
@@ -358,6 +386,32 @@ focusRingList =
     SearchRegion CaseSensitiveField,
     ResultRegion
   ]
+
+formFocusRingList :: [SearchRegion]
+formFocusRingList =
+  [ StringField,
+    SelectSleeperField,
+    SelectInputField,
+    SelectCmdField,
+    SelectOutputField,
+    ConjAndField,
+    ConjOrField,
+    CaseSensitiveField
+  ]
+
+-- key up
+formFocusRingLoop :: SearchRegion -> SearchRegion
+formFocusRingLoop f = case f `elemIndex` formFocusRingList of
+  Just 0 -> CaseSensitiveField
+  Just i -> formFocusRingList !! (i - 1)
+  _ -> error "formFocusRingLoop"
+
+-- key down
+formFocusRingLoop' :: SearchRegion -> SearchRegion
+formFocusRingLoop' f = case f `elemIndex` formFocusRingList of
+  Just 7 -> StringField
+  Just i -> formFocusRingList !! (i + 1)
+  _ -> error "formFocusRingLoop'"
 
 initialState :: [CronSchema] -> AppState
 initialState cs =
