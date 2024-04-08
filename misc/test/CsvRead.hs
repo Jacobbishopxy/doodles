@@ -5,24 +5,35 @@
 
 module Main where
 
-import Data.ByteString (ByteString)
-import Data.ByteString.Char8 qualified as C
+import Data.ByteString.Lazy qualified as BS
+-- import Data.ByteString.Char8 qualified as C
+
+import Data.Text qualified as T
+import Data.Text.ICU.Convert qualified as ICU
 import System.Environment (getArgs)
-import System.IO
+import System.IO qualified as SIO
 
-parse :: ByteString -> [ByteString]
-parse s = parse' s [] [] 0
-
-parse' :: ByteString -> String -> [ByteString] -> Int -> [ByteString]
-parse' s cur line _ | C.length s == 1 = reverse (C.pack (reverse cur) : line)
-parse' s cur line n | C.head s == ',' && even n = parse' (C.tail s) [] (C.pack (reverse cur) : line) 0
-parse' s cur line n = parse' (C.tail s) (C.head s : cur) line (if C.head s == '"' then n + 1 else n)
+parse :: T.Text -> [T.Text]
+parse t = f t [] [] 0
+  where
+    f :: T.Text -> String -> [T.Text] -> Int -> [T.Text]
+    f s cur line _ | T.length s == 1 = reverse (T.pack (reverse cur) : line)
+    f s cur line n | T.head s == ',' && even n = f (T.tail s) [] (T.pack (reverse cur) : line) 0
+    f s cur line n = f (T.tail s) (T.head s : cur) line (if T.head s == '"' then n + 1 else n)
 
 main :: IO ()
 main = do
   args <- getArgs
-  let fpath = head args
+  let file = head args
 
-  handle <- openFile fpath ReadMode
-  contents <- C.hGetContents handle
-  mapM_ print [parse x | x <- C.lines contents]
+  -- Open the file in binary mode
+  fileHandle <- SIO.openBinaryFile file SIO.ReadMode
+  -- Read the file contents as ByteString
+  fileBytes <- BS.hGetContents fileHandle
+
+  -- Create a converter for converting from GBK to UTF-8
+  converter <- ICU.open "utf-8" Nothing
+  -- Convert the ByteString contents from GBK to UTF-8 encoded Text
+  let decodedContents = ICU.toUnicode converter (BS.toStrict fileBytes)
+
+  mapM_ print [parse x | x <- T.lines decodedContents]

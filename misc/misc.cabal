@@ -173,24 +173,28 @@ executable csv-read
   build-depends:
     , base
     , bytestring
+    , text
+    , text-icu
 
-executable csv-read2record
+executable cron-csv-reader3
   import:           warnings
   default-language: GHC2021
   hs-source-dirs:   test
-  main-is:          CsvRead2Record.hs
+  main-is:          CronCsvReader3.hs
   build-depends:
     , base
     , bytestring
 
-executable csv-read2
+executable cron-csv-reader2
   import:           warnings
   default-language: GHC2021
   hs-source-dirs:   test
-  main-is:          CsvRead2.hs
+  main-is:          CronCsvReader2.hs
   build-depends:
     , base
+    , bytestring
     , text
+    , text-icu
 
 executable show-csv2
   import:           warnings
@@ -241,3 +245,16 @@ executable test-gpt
     , text
     , vty
     , vty-crossplatform
+
+executable csv-read2
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          CsvRead2.hs
+  build-depends:
+    , base
+    , bytestring
+    , cassava
+    , text
+    , text-icu
+    , vector

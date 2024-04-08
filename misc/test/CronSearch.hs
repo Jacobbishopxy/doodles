@@ -66,9 +66,6 @@ data SearchRegion
   | InvisibleField
   deriving (Eq, Ord, Show)
 
-data ColsField = InputCol | CmdCol | OutputCol
-  deriving (Show, Ord, Eq)
-
 data ConjField = ConjAnd | ConjOr
   deriving (Show, Ord, Eq)
 
