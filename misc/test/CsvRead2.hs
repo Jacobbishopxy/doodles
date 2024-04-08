@@ -9,7 +9,7 @@ module Main where
 
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
-import Data.Csv qualified as Csv
+import Data.Csv
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Text.Encoding.Error qualified as TE
@@ -17,29 +17,60 @@ import Data.Vector qualified as V
 import System.Environment (getArgs)
 import System.IO qualified as SIO
 
-main :: IO ()
-main = do
-  args <- getArgs
-  let file = head args
+type CsvResult a = Either String (Header, V.Vector a)
 
-  -- Open the file with GBK encoding explicitly
-  fileHandle <- SIO.openFile file SIO.ReadMode
-  -- Read the file contents as ByteString
-  fileBytes <- BS.hGetContents fileHandle
+readCsv :: (FromNamedRecord a) => FilePath -> IO (CsvResult a)
+readCsv file = do
+  h <- SIO.openFile file SIO.ReadMode
+  b <- BS.hGetContents h
+
+  let decodedText = TE.decodeUtf8With TE.lenientDecode b
+
+  let csvData = decodeByName (BSL.fromStrict $ TE.encodeUtf8 decodedText)
+
+  return csvData
+
+readCsv' :: FilePath -> IO (Either String (V.Vector (V.Vector T.Text)))
+readCsv' file = do
+  h <- SIO.openFile file SIO.ReadMode
+  fileBytes <- BS.hGetContents h
 
   -- Decode the file contents from GBK to UTF-8
   let decodedText = TE.decodeUtf8With TE.lenientDecode fileBytes
 
   -- Parse the CSV file using cassava
-  let csvData = Csv.decode Csv.NoHeader (BSL.fromStrict $ TE.encodeUtf8 decodedText) :: Either String (V.Vector (V.Vector T.Text))
+  return $ decode NoHeader (BSL.fromStrict $ TE.encodeUtf8 decodedText)
 
-  -- Handle the parsed CSV data
+data CronSchema = CronSchema
+  { dag :: String,
+    name :: String,
+    sleeper :: String,
+    input :: String,
+    cmd :: String,
+    output :: String,
+    activate :: String
+  }
+  deriving (Show)
+
+instance FromNamedRecord CronSchema where
+  parseNamedRecord m =
+    CronSchema
+      <$> m .: "dag"
+      <*> m .: "name"
+      <*> m .: "sleeper"
+      <*> m .: "input"
+      <*> m .: "cmd"
+      <*> m .: "output"
+      <*> m .: "activate"
+
+main :: IO ()
+main = do
+  args <- getArgs
+  let file = head args
+
+  csvData :: CsvResult CronSchema <- readCsv file
+
   case csvData of
-    Left err -> putStrLn $ "Error parsing CSV: " ++ err
-    Right rows -> do
-      let listOfLists = map V.toList (V.toList rows)
-      putStrLn "Contents of the CSV file:"
-      mapM_ print listOfLists
-
-  -- Close the file handle
-  SIO.hClose fileHandle
+    Left err -> error err
+    Right d -> do
+      V.mapM_ print $ snd d

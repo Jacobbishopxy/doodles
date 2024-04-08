@@ -1,6 +1,4 @@
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
 
 -- file: CsvHelper.hs
 -- author: Jacob Xie
@@ -9,6 +7,7 @@
 
 module MiscLib.CsvHelper
   ( readCsv,
+    readCsv',
     ParseRecord (..),
     readFloat,
     readFloat',
@@ -23,9 +22,16 @@ module MiscLib.CsvHelper
   )
 where
 
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Csv as Csv
 import Data.List (elemIndex)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Encoding.Error as TE
 import qualified Data.Text.IO as TIO
+import qualified Data.Vector as Vec
+import qualified System.IO as SIO
 
 ----------------------------------------------------------------------------------------------------
 -- Class
@@ -38,6 +44,17 @@ class ParseRecord a where
 ----------------------------------------------------------------------------------------------------
 -- Public Fn
 ----------------------------------------------------------------------------------------------------
+
+readCsv' :: (Csv.FromNamedRecord a) => FilePath -> IO (Either String (Csv.Header, Vec.Vector a))
+readCsv' file = do
+  h <- SIO.openFile file SIO.ReadMode
+  b <- BS.hGetContents h
+
+  let decodedText = TE.decodeUtf8With TE.lenientDecode b
+
+  let csvData = Csv.decodeByName (BSL.fromStrict $ TE.encodeUtf8 decodedText)
+
+  return csvData
 
 readCsv :: (ParseRecord a) => FilePath -> IO (Either String [a])
 readCsv file = do
