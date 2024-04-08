@@ -7,6 +7,7 @@
 
 module Main where
 
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as BSL
 import Data.Csv qualified as Csv
 import Data.Text qualified as T
@@ -24,10 +25,10 @@ main = do
   -- Open the file with GBK encoding explicitly
   fileHandle <- SIO.openFile file SIO.ReadMode
   -- Read the file contents as ByteString
-  fileBytes <- BSL.hGetContents fileHandle
+  fileBytes <- BS.hGetContents fileHandle
 
   -- Decode the file contents from GBK to UTF-8
-  let decodedText = TE.decodeUtf8With TE.lenientDecode (BSL.toStrict fileBytes)
+  let decodedText = TE.decodeUtf8With TE.lenientDecode fileBytes
 
   -- Parse the CSV file using cassava
   let csvData = Csv.decode Csv.NoHeader (BSL.fromStrict $ TE.encodeUtf8 decodedText) :: Either String (V.Vector (V.Vector T.Text))
