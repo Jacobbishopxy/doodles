@@ -269,3 +269,15 @@ executable csv-read3
     , text
     , text-icu
     , vector
+
+executable csv-read4
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          CsvRead4.hs
+  build-depends:
+    , base
+    , bytestring
+    , hw-dsv
+    , text
+    , vector

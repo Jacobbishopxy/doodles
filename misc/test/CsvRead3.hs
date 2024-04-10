@@ -1,8 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- file: CsvRead3.hs
 -- author: Jacob Xie
 -- date: 2024/04/09 08:53:00 Tuesday
 -- brief:
-{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
