@@ -194,6 +194,7 @@ executable cron-csv-reader2
     , base
     , bytestring
     , text
+    , text-icu
 
 executable show-csv2
   import:           warnings

@@ -6,7 +6,8 @@
 module Main where
 
 import Data.ByteString.Lazy qualified as LBS
-import Data.Vector qualified as DV
+import Data.List (nub)
+import Data.Vector qualified as V
 import Data.Word
 import HaskellWorks.Data.Dsv.Lazy.Cursor qualified as SVL
 import HaskellWorks.Data.Dsv.Lazy.Cursor.Lazy qualified as SVL
@@ -22,7 +23,10 @@ main = do
 
   bs <- LBS.readFile file
   let c = SVL.makeCursor (charToWord8 ',') bs
-  let rows :: [DV.Vector LBS.ByteString] = SVL.toListVector c
+  let rows :: V.Vector (V.Vector LBS.ByteString) = SVL.toVectorVector c
   print rows
+
+  let r = nub $ V.toList $ V.map V.length rows
+  print r
 
   return ()
