@@ -1,5 +1,5 @@
 # BHoogle
 
-- `cabal install exe:hoogle`
+- `cabal install hoogle`
 
 - `hoogle generate`

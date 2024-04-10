@@ -12,34 +12,33 @@ import Data.ByteString.Lazy qualified as BSL
 import Data.Csv
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
-import Data.Text.Encoding.Error qualified as TE
 import Data.Vector qualified as V
 import System.Environment (getArgs)
 import System.IO qualified as SIO
 
 type CsvResult a = Either String (Header, V.Vector a)
 
+type CsvResult' = Either String (V.Vector (V.Vector T.Text))
+
 readCsv :: (FromNamedRecord a) => FilePath -> IO (CsvResult a)
 readCsv file = do
   h <- SIO.openFile file SIO.ReadMode
   b <- BS.hGetContents h
 
-  let decodedText = TE.decodeUtf8With TE.lenientDecode b
+  let decodedText = TE.decodeUtf8Lenient b
 
-  let csvData = decodeByName (BSL.fromStrict $ TE.encodeUtf8 decodedText)
+  return $ decodeByName $ BSL.fromStrict $ TE.encodeUtf8 decodedText
 
-  return csvData
-
-readCsv' :: FilePath -> IO (Either String (V.Vector (V.Vector T.Text)))
+readCsv' :: FilePath -> IO CsvResult'
 readCsv' file = do
   h <- SIO.openFile file SIO.ReadMode
   fileBytes <- BS.hGetContents h
 
   -- Decode the file contents from GBK to UTF-8
-  let decodedText = TE.decodeUtf8With TE.lenientDecode fileBytes
+  let decodedText = TE.decodeUtf8Lenient fileBytes
 
   -- Parse the CSV file using cassava
-  return $ decode NoHeader (BSL.fromStrict $ TE.encodeUtf8 decodedText)
+  return $ decode NoHeader $ BSL.fromStrict $ TE.encodeUtf8 decodedText
 
 data CronSchema = CronSchema
   { dag :: String,
@@ -69,8 +68,12 @@ main = do
   let file = head args
 
   csvData :: CsvResult CronSchema <- readCsv file
-
   case csvData of
     Left err -> error err
     Right d -> do
       V.mapM_ print $ snd d
+
+-- csvData' :: CsvResult' <- readCsv' file
+-- case csvData' of
+--   Left err -> error err
+--   Right d -> V.mapM_ print d

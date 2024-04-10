@@ -256,3 +256,16 @@ executable csv-read2
     , cassava
     , text
     , vector
+
+executable csv-read3
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          CsvRead3.hs
+  build-depends:
+    , base
+    , bytestring
+    , cassava
+    , text
+    , text-icu
+    , vector
