@@ -228,24 +228,6 @@ executable cron-search
     , vty-crossplatform
     , yaml
 
-executable test-gpt
-  import:           warnings
-  default-language: GHC2021
-  hs-source-dirs:   test
-  main-is:          TestGPT.hs
-  ghc-options:      -threaded -Wall -Wcompat -O2
-  build-depends:
-    , base
-    , brick
-    , microlens
-    , microlens-mtl
-    , microlens-th
-    , misclib
-    , mtl
-    , text
-    , vty
-    , vty-crossplatform
-
 executable csv-read2
   import:           warnings
   default-language: GHC2021
@@ -281,4 +263,18 @@ executable csv-read4
     , bytestring
     , hw-dsv
     , text
+    , unordered-containers
+    , vector
+
+executable csv-read5
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          CsvRead5.hs
+  build-depends:
+    , base
+    , bytestring
+    , hw-dsv
+    , text
+    , unordered-containers
     , vector

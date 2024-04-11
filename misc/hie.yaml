@@ -45,9 +45,6 @@ cradle:
     - path: "test/CronSearchUtil.hs"
       component: "misclib:exe:cron-search"
 
-    - path: "test/TestGPT.hs"
-      component: "misclib:exe:test-gpt"
-
     - path: "test/CsvRead2.hs"
       component: "misclib:exe:csv-read2"
 
@@ -56,3 +53,6 @@ cradle:
 
     - path: "test/CsvRead4.hs"
       component: "misclib:exe:csv-read4"
+
+    - path: "test/CsvRead5.hs"
+      component: "misclib:exe:csv-read5"
