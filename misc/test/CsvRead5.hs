@@ -118,8 +118,8 @@ instance Parser (Maybe Bool) where
 
 ----------------------------------------------------------------------------------------------------
 
-(.:) :: (Parser a) => (HM.HashMap BSL.ByteString Int, BSL.ByteString) -> RawRow -> Maybe a
-(.:) (fieldIndices, field) vec = do
+(~>) :: (Parser a) => (HM.HashMap BSL.ByteString Int, BSL.ByteString) -> RawRow -> Maybe a
+(~>) (fieldIndices, field) vec = do
   idx <- HM.lookup field fieldIndices
   return $ parse $ vec V.! idx
 
@@ -140,13 +140,13 @@ data CronSchema = CronSchema
 instance FromRecord CronSchema where
   parseRecord fieldIndices vec = do
     CronSchema
-      <$> (fieldIndices, "dag") .: vec
-      <*> (fieldIndices, "name") .: vec
-      <*> (fieldIndices, "sleeper") .: vec
-      <*> (fieldIndices, "input") .: vec
-      <*> (fieldIndices, "cmd") .: vec
-      <*> (fieldIndices, "output") .: vec
-      <*> (fieldIndices, "activate") .: vec
+      <$> (fieldIndices, "dag") ~> vec
+      <*> (fieldIndices, "name") ~> vec
+      <*> (fieldIndices, "sleeper") ~> vec
+      <*> (fieldIndices, "input") ~> vec
+      <*> (fieldIndices, "cmd") ~> vec
+      <*> (fieldIndices, "output") ~> vec
+      <*> (fieldIndices, "activate") ~> vec
 
 main :: IO ()
 main = do
