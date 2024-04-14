@@ -15,8 +15,6 @@ import Data.ByteString qualified as S
 import Data.ByteString.Builder (byteString, charUtf8, toLazyByteString)
 import Data.ByteString.Lazy qualified as LS
 import Data.ByteString.Unsafe qualified as S
--- import Data.Text.Encoding qualified as TE
--- import Data.Text.Encoding.Error qualified as TE
 import Data.Vector qualified as V
 import Data.Word (Word8)
 import System.Environment (getArgs)

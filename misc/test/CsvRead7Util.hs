@@ -18,7 +18,7 @@ import Data.Attoparsec.ByteString qualified as A
 import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as L
-import Data.Functor
+import Data.Functor (($>))
 import Data.HashMap.Strict qualified as HM
 import Data.Vector (Vector)
 import Data.Vector qualified as V

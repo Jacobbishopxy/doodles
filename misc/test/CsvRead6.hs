@@ -25,7 +25,7 @@ lineEnd =
   void (char '\n')
     <|> void (string "\r\n")
     <|> void (char '\r')
-      <?> "end of line"
+    <?> "end of line"
 
 unquotedField :: Parser T.Text
 unquotedField =
@@ -37,25 +37,25 @@ insideQuotes =
   T.append
     <$> takeWhile (/= '"')
     <*> (T.concat <$> many (T.cons <$> dquotes <*> insideQuotes))
-      <?> "inside of double quotes"
+    <?> "inside of double quotes"
   where
     dquotes =
       string "\"\""
         >> return '"'
-          <?> "paired double quotes"
+        <?> "paired double quotes"
 
 quotedField :: Parser T.Text
 quotedField =
   char '"'
     *> insideQuotes
     <* char '"'
-      <?> "quoted field"
+    <?> "quoted field"
 
 field :: Parser T.Text
 field =
   quotedField
     <|> unquotedField
-      <?> "field"
+    <?> "field"
 
 record :: Parser [T.Text]
 record =
@@ -70,7 +70,7 @@ file =
     <*> manyTill
       (lineEnd *> record)
       (endOfInput <|> lineEnd *> endOfInput)
-      <?> "file"
+    <?> "file"
 
 parseCSV :: T.Text -> Either String CSV
 parseCSV = parseOnly file

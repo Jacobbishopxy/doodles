@@ -138,3 +138,12 @@ executable csv-read7
     , text
     , unordered-containers
     , vector
+
+executable spawn-proc
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          SpawnProc.hs
+  build-depends:
+    , base
+    , process
