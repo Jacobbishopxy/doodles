@@ -3,59 +3,20 @@ cradle:
     - path: "src"
       component: "lib:misclib"
 
-    - path: "test/CronCsvReader.hs"
-      component: "misclib:exe:cron-csv-reader"
-
-    - path: "test/DirCsvReader.hs"
-      component: "misclib:exe:dir-csv-reader"
-
     - path: "test/YamlReader.hs"
       component: "misclib:exe:yaml-reader"
-
-    - path: "test/YamlCsvReader.hs"
-      component: "misclib:exe:yaml-csv-reader"
-
-    - path: "test/ShowCsv.hs"
-      component: "misclib:exe:show-csv"
 
     - path: "test/Uppercase.hs"
       component: "misclib:exe:uppercase"
 
-    - path: "test/ShowCsvPro.hs"
-      component: "misclib:exe:show-csv-pro"
-
     - path: "test/ShowCsvCell.hs"
       component: "misclib:exe:show-csv-cell"
-
-    - path: "test/CsvRead.hs"
-      component: "misclib:exe:csv-read"
-
-    - path: "test/CronCsvReader3.hs"
-      component: "misclib:exe:cron-csv-reader3"
-
-    - path: "test/CronCsvReader2.hs"
-      component: "misclib:exe:cron-csv-reader2"
-
-    - path: "test/ShowCsv2.hs"
-      component: "misclib:exe:show-csv2"
 
     - path: "test/CronSearch.hs"
       component: "misclib:exe:cron-search"
 
     - path: "test/CronSearchUtil.hs"
       component: "misclib:exe:cron-search"
-
-    - path: "test/CsvRead2.hs"
-      component: "misclib:exe:csv-read2"
-
-    - path: "test/CsvRead3.hs"
-      component: "misclib:exe:csv-read3"
-
-    - path: "test/CsvRead4.hs"
-      component: "misclib:exe:csv-read4"
-
-    - path: "test/CsvRead5.hs"
-      component: "misclib:exe:csv-read5"
 
     - path: "test/CsvRead6.hs"
       component: "misclib:exe:csv-read6"
