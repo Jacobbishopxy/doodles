@@ -278,3 +278,32 @@ executable csv-read5
     , text
     , unordered-containers
     , vector
+
+executable csv-read6
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          CsvRead6.hs
+  build-depends:
+    , array
+    , attoparsec
+    , base
+    , bytestring
+    , containers
+    , parsec
+    , text
+    , vector
+
+executable csv-read7
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          CsvRead7.hs
+  other-modules:    CsvRead7Util
+  build-depends:
+    , attoparsec
+    , base
+    , bytestring
+    , text
+    , unordered-containers
+    , vector

@@ -56,3 +56,12 @@ cradle:
 
     - path: "test/CsvRead5.hs"
       component: "misclib:exe:csv-read5"
+
+    - path: "test/CsvRead6.hs"
+      component: "misclib:exe:csv-read6"
+
+    - path: "test/CsvRead7.hs"
+      component: "misclib:exe:csv-read7"
+
+    - path: "test/CsvRead7Util.hs"
+      component: "misclib:exe:csv-read7"
