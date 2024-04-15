@@ -147,3 +147,14 @@ executable spawn-proc
   build-depends:
     , base
     , process
+
+executable spawn-proc2
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          SpawnProc2.hs
+  build-depends:
+    , base
+    , bytestring
+    , process
+    , unix
