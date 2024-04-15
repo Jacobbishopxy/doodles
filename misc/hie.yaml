@@ -32,3 +32,6 @@ cradle:
 
     - path: "test/SpawnProc2.hs"
       component: "misclib:exe:spawn-proc2"
+
+    - path: "test/SysProc.hs"
+      component: "misclib:exe:sys-proc"

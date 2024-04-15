@@ -158,3 +158,21 @@ executable spawn-proc2
     , bytestring
     , process
     , unix
+
+executable sys-proc
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          SysProc.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , bytestring
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , process
+    , text
+    , vty
+    , vty-crossplatform

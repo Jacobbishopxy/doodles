@@ -174,11 +174,11 @@ drawUi st = [padAll 1 contentBlock]
       padLeft (Pad 1) $
         hLimit 60 $
           vtitle "package:"
-            <=> padLeft (Pad 2) (txt $ getSelectedDetail (maybe "" (Txt.pack . fst) . H.targetPackage))
+            <=> padLeft (Pad 2) (txt $ getSelectedDetail $ maybe "" (Txt.pack . fst) . H.targetPackage)
             <=> vtitle "module:"
-            <=> padLeft (Pad 2) (txt $ getSelectedDetail (maybe "" (Txt.pack . fst) . H.targetModule))
+            <=> padLeft (Pad 2) (txt $ getSelectedDetail $ maybe "" (Txt.pack . fst) . H.targetModule)
             <=> vtitle "docs:"
-            <=> padLeft (Pad 2) (txt $ getSelectedDetail (Txt.pack . clean . H.targetDocs))
+            <=> padLeft (Pad 2) (txt $ getSelectedDetail $ Txt.pack . clean . H.targetDocs)
             <=> fill ' '
     searchBlock =
       ((htitle "Type: " <+> editor TypeSearch (st ^. stEditType)) <+> time (st ^. stTime))
