@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- file: SysProc.hs
+-- file: ListDir.hs
 -- author: Jacob Xie
--- date: 2024/04/15 15:55:49 Monday
+-- date: 2024/04/16 16:31:48 Tuesday
 -- brief:
 
 module Main where
@@ -66,12 +66,11 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
     Just EditInput -> do
       st' <- get
       let cmd = getEditContents $ st' ^. inputEditor
-      p <- liftIO $ createProcess (proc "echo" cmd) {std_out = CreatePipe, std_in = CreatePipe}
+      p <- liftIO $ createProcess (proc "ls" $ ["-a", "-l"] ++ cmd) {std_out = CreatePipe, std_in = CreatePipe}
 
       case p of
         (_, Just otp, _, pHandle) -> do
-          -- block until the response is received
-          contents <- liftIO $ hGetContents' otp
+          contents <- liftIO $ hGetContents otp
 
           outputText .= contents
 

@@ -1,0 +1,13 @@
+#!/usr/bin/env perl
+#
+# A program to interact with via stdin / stdout.
+#
+# Receives "x y" on stdin; emits x+1 after a delay of y seconds.
+
+$| = 1;
+
+while (<STDIN>) {
+  my ($a, $t) = split(' ', $_);
+  sleep $t;
+  print $a+1, "\n";
+}

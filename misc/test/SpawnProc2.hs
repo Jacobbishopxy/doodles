@@ -13,7 +13,7 @@ import System.Process
 import System.Timeout (timeout)
 
 cmdCompute :: String
-cmdCompute = "./tmp/compute"
+cmdCompute = "./scripts/compute"
 
 -- blocking IO
 f1 :: String -> Int -> IO ExitCode

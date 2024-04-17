@@ -35,3 +35,6 @@ cradle:
 
     - path: "test/SysProc.hs"
       component: "misclib:exe:sys-proc"
+
+    - path: "test/ListDir.hs"
+      component: "misclib:exe:list-dir"
