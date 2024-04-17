@@ -11,14 +11,17 @@ import Brick
 import Brick.Focus qualified as F
 import Brick.Widgets.Center
 import Brick.Widgets.Edit
+import Control.Exception
 import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
+import Data.Maybe (fromMaybe)
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
 import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro
 import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
+import System.Exit
 import System.IO
 import System.Process
 
@@ -47,9 +50,9 @@ drawUI st = [ui]
     ui =
       center $
         vBox
-          [ str "Input: " <+> hLimit 30 (vLimit 1 e1),
+          [ str "Input: " <+> hLimit 50 (vLimit 1 e1),
             str " ",
-            str "Output: " <+> txt (T.pack $ st ^. outputText),
+            str "Output:" <=> txt (T.pack $ st ^. outputText),
             str " ",
             str "Press Enter to finish input, Esc to quit."
           ]
@@ -65,17 +68,25 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
   case F.focusGetCurrent r of
     Just EditInput -> do
       st' <- get
-      let cmd = getEditContents $ st' ^. inputEditor
-      p <- liftIO $ createProcess (proc "ls" $ ["-a", "-l"] ++ cmd) {std_out = CreatePipe, std_in = CreatePipe}
-
-      case p of
-        (_, Just otp, _, pHandle) -> do
-          contents <- liftIO $ hGetContents otp
-
-          outputText .= contents
-
-          void $ liftIO $ waitForProcess pHandle
-        _ -> return ()
+      let lookupDir = getEditContents $ st' ^. inputEditor
+      result <-
+        liftIO $
+          try' $ -- try is unnecessary here, since `ls` is a normal program -- try is unnecessary here, since `ls` is a normal program
+            createProcess
+              (proc "ls" $ ["-a", "-l"] <> lookupDir)
+                { std_out = CreatePipe,
+                  std_err = NoStream -- ignore error, make error display on Output field
+                }
+      case result of
+        Left ex -> outputText .= show ex
+        Right (_, o, _, h) -> do
+          -- get output contents
+          contents <- liftIO $ mapM hGetContents o
+          exitCode <- liftIO $ waitForProcess h
+          -- modify state
+          case exitCode of
+            ExitFailure _ -> outputText .= show (concat lookupDir) <> " is not accessible!"
+            ExitSuccess -> outputText .= fromMaybe "" contents
     _ -> return ()
 handleEvent ev = do
   r <- use focusRing
@@ -115,6 +126,13 @@ theApp =
       appStartEvent = return (),
       appAttrMap = const theMap
     }
+
+----------------------------------------------------------------------------------------------------
+-- Helper
+----------------------------------------------------------------------------------------------------
+
+try' :: IO a -> IO (Either IOException a)
+try' = try
 
 ----------------------------------------------------------------------------------------------------
 -- Main
