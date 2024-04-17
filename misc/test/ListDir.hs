@@ -50,11 +50,11 @@ drawUI st = [ui]
     ui =
       center $
         vBox
-          [ str "Input: " <+> hLimit 50 (vLimit 1 e1),
+          [ str "Press Enter to finish input, Esc to quit.",
             str " ",
-            str "Output:" <=> txt (T.pack $ st ^. outputText),
+            str "Input: " <+> hLimit 50 (vLimit 1 e1),
             str " ",
-            str "Press Enter to finish input, Esc to quit."
+            str "Output:" <=> txt (T.pack $ st ^. outputText)
           ]
 
 ----------------------------------------------------------------------------------------------------
@@ -71,21 +71,23 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
       let lookupDir = getEditContents $ st' ^. inputEditor
       result <-
         liftIO $
-          try' $ -- try is unnecessary here, since `ls` is a normal program -- try is unnecessary here, since `ls` is a normal program
+          try' $ -- try is unnecessary here, since `ls` is a normal program -- try is unnecessary here, since `ls` is a normal program -- try is unnecessary here, since `ls` is a normal program -- try is unnecessary here, since `ls` is a normal program
             createProcess
               (proc "ls" $ ["-a", "-l"] <> lookupDir)
                 { std_out = CreatePipe,
-                  std_err = NoStream -- ignore error, make error display on Output field
+                  std_err = CreatePipe
                 }
       case result of
         Left ex -> outputText .= show ex
-        Right (_, o, _, h) -> do
+        Right (_, o, e, h) -> do
           -- get output contents
           contents <- liftIO $ mapM hGetContents o
+          errors <- liftIO $ mapM hGetContents e
           exitCode <- liftIO $ waitForProcess h
+
           -- modify state
           case exitCode of
-            ExitFailure _ -> outputText .= show (concat lookupDir) <> " is not accessible!"
+            ExitFailure _ -> outputText .= fromMaybe "" errors
             ExitSuccess -> outputText .= fromMaybe "" contents
     _ -> return ()
 handleEvent ev = do
