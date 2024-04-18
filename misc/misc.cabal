@@ -194,3 +194,21 @@ executable list-dir
     , text
     , vty
     , vty-crossplatform
+
+executable tail-io
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          TailIO.hs
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  build-depends:
+    , base
+    , brick
+    , bytestring
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , process
+    , text
+    , vty
+    , vty-crossplatform

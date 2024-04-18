@@ -71,7 +71,7 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
       let lookupDir = getEditContents $ st' ^. inputEditor
       result <-
         liftIO $
-          try' $ -- try is unnecessary here, since `ls` is a normal program -- try is unnecessary here, since `ls` is a normal program -- try is unnecessary here, since `ls` is a normal program -- try is unnecessary here, since `ls` is a normal program
+          try' $ -- try is unnecessary here, since `ls` is a normal program
             createProcess
               (proc "ls" $ ["-a", "-l"] <> lookupDir)
                 { std_out = CreatePipe,
@@ -82,7 +82,9 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
         Right (_, o, e, h) -> do
           -- get output contents
           contents <- liftIO $ mapM hGetContents o
+          -- get error messages
           errors <- liftIO $ mapM hGetContents e
+          -- get exit code
           exitCode <- liftIO $ waitForProcess h
 
           -- modify state
