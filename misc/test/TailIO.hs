@@ -15,13 +15,13 @@ import Brick.Widgets.Edit
 import Control.Exception
 import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
-import Data.Maybe (fromMaybe)
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
 import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro
 import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
+import MiscLib (loopingList)
 import System.Exit
 import System.IO
 import System.Process
@@ -84,34 +84,18 @@ handleEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
 handleEvent (VtyEvent (V.EvKey V.KUp [])) = do
   r <- use focusRing
   case F.focusGetCurrent r of
-    Just SleeperLB -> do
-      focusRing %= F.focusSetCurrent SleeperT
-      modify $ opForm %~ setFormFocus SleeperT
-    Just SleeperUB -> do
-      focusRing %= F.focusSetCurrent SleeperLB
-      modify $ opForm %~ setFormFocus SleeperLB
-    Just SleeperE -> do
-      focusRing %= F.focusSetCurrent SleeperUB
-      modify $ opForm %~ setFormFocus SleeperUB
-    Just SleeperT -> do
-      focusRing %= F.focusSetCurrent SleeperE
-      modify $ opForm %~ setFormFocus SleeperE
+    Just f -> do
+      let f' = switchFormFocus f (-1)
+      focusRing %= F.focusSetCurrent f'
+      modify $ opForm %~ setFormFocus f'
     _ -> return ()
 handleEvent (VtyEvent (V.EvKey V.KDown [])) = do
   r <- use focusRing
   case F.focusGetCurrent r of
-    Just SleeperLB -> do
-      focusRing %= F.focusSetCurrent SleeperUB
-      modify $ opForm %~ setFormFocus SleeperUB
-    Just SleeperUB -> do
-      focusRing %= F.focusSetCurrent SleeperE
-      modify $ opForm %~ setFormFocus SleeperE
-    Just SleeperE -> do
-      focusRing %= F.focusSetCurrent SleeperT
-      modify $ opForm %~ setFormFocus SleeperT
-    Just SleeperT -> do
-      focusRing %= F.focusSetCurrent SleeperLB
-      modify $ opForm %~ setFormFocus SleeperLB
+    Just f -> do
+      let f' = switchFormFocus f 1
+      focusRing %= F.focusSetCurrent f'
+      modify $ opForm %~ setFormFocus f'
     _ -> return ()
 handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
   undefined
@@ -129,6 +113,19 @@ theMap =
       (editFocusedAttr, V.black `on` V.yellow),
       (invalidFormInputAttr, V.white `on` V.red),
       (focusedFormInputAttr, V.black `on` V.yellow)
+    ]
+
+----------------------------------------------------------------------------------------------------
+-- Helper
+----------------------------------------------------------------------------------------------------
+
+switchFormFocus :: Name -> Int -> Name
+switchFormFocus =
+  loopingList
+    [ SleeperLB,
+      SleeperUB,
+      SleeperE,
+      SleeperT
     ]
 
 ----------------------------------------------------------------------------------------------------

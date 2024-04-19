@@ -8,9 +8,11 @@ module MiscLib
     readEnvFile,
     module MiscLib.CsvHelper,
     (!?),
+    loopingList,
   )
 where
 
+import Data.List
 import MiscLib.CronSchema
 import MiscLib.CsvHelper
 import MiscLib.DotenvReader (readEnvFile)
@@ -29,3 +31,11 @@ xs !? n
         (const Nothing)
         xs
         n
+
+loopingList :: (Eq a) => [a] -> a -> Int -> a
+loopingList [] _ _ = error "Empty list"
+loopingList xs y i = xs !! (loc `mod` length xs)
+  where
+    loc = case y `elemIndex` xs of
+      Nothing -> error "Element not in the list!"
+      Just i' -> i' + i
