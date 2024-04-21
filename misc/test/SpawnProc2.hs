@@ -86,10 +86,10 @@ Usage: ./prog which delay timeout
     delay   = delay in seconds to send to compute script
     timeout = timeout in seconds to wait for response
 E.g.:
-  ./prog 1 4 3   -- note: timeout is ignored for main1
-  ./prog 2 2 3   -- should get response
-  ./prog 2 4 3   -- should timeout
-  ./prog 3 4 1   -- should see "still waiting..." a couple of times
+  cabal run spawn-proc2 1 4 3   -- note: timeout is ignored for main1
+  cabal run spawn-proc2 2 2 3   -- should get response
+  cabal run spawn-proc2 2 4 3   -- should timeout
+  cabal run spawn-proc2 3 4 1   -- should see "still waiting..." a couple of times
 -}
 
 main :: IO ExitCode

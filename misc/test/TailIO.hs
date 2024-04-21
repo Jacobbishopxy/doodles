@@ -10,11 +10,11 @@ module Main where
 import Brick
 import Brick.Focus qualified as F
 import Brick.Forms
-import Brick.Widgets.Center
 import Brick.Widgets.Edit
-import Control.Exception
+import Control.Concurrent
 import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
+import Data.Maybe (fromMaybe)
 import Data.Text qualified as T
 import Graphics.Vty qualified as V
 import Graphics.Vty.CrossPlatform (mkVty)
@@ -25,6 +25,7 @@ import MiscLib (loopingList)
 import System.Exit
 import System.IO
 import System.Process
+import System.Timeout (timeout)
 
 ----------------------------------------------------------------------------------------------------
 -- Adt
@@ -59,7 +60,13 @@ makeLenses ''State
 ----------------------------------------------------------------------------------------------------
 
 drawUI :: State -> [Widget Name]
-drawUI = undefined
+drawUI st = [ui]
+  where
+    ui = vBox [controlBox st, txt $ T.pack $ st ^. outputText]
+
+-- control box
+controlBox :: State -> Widget Name
+controlBox st = renderForm (st ^. opForm)
 
 ----------------------------------------------------------------------------------------------------
 
@@ -98,12 +105,72 @@ handleEvent (VtyEvent (V.EvKey V.KDown [])) = do
       modify $ opForm %~ setFormFocus f'
     _ -> return ()
 handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
-  undefined
-handleEvent _ = return ()
+  st' <- get
+  let fm = formState $ st' ^. opForm
+      lb = fm ^. sleeperLowerBound
+      ub = fm ^. sleeperUpperBound
+      ex = fm ^. sleeperExists
+      tot = fm ^. sleeperTimeout
+  (_, output, err, hd) <-
+    liftIO $
+      createProcess
+        (proc "bash" ["scripts/rand_print.sh", "-l", show lb, "-h", show ub, "-m", show ex])
+          { std_out = CreatePipe,
+            std_err = CreatePipe
+          }
+
+  -- TODO: concurrent
+  -- mVar <- liftIO newEmptyMVar
+  -- let output' = fromMaybe (error "output is None") output
+
+  -- tid <- liftIO $ forkIO $ hGetLine output' >>= putMVar mVar
+
+  -- let loop = do
+  --       result <- timeout tot $ takeMVar mVar
+  --       maybe loop return result
+
+  -- x <- liftIO loop
+
+  -- liftIO $ killThread tid
+
+  -- get output contents
+  contents <- liftIO $ mapM hGetContents output
+
+  -- get error messages
+  errors <- liftIO $ mapM hGetContents err
+  -- get exit code
+  exitCode <- liftIO $ waitForProcess hd
+
+  -- modify state
+  case exitCode of
+    ExitFailure _ -> outputText .= fromMaybe "" errors
+    ExitSuccess -> outputText .= fromMaybe "" contents
+handleEvent ev =
+  zoom opForm $ handleFormEvent ev
+
+----------------------------------------------------------------------------------------------------
+
+commitFormRequest :: OpForm -> State
+commitFormRequest = undefined
 
 ----------------------------------------------------------------------------------------------------
 -- App
 ----------------------------------------------------------------------------------------------------
+
+initialState :: State
+initialState =
+  State
+    { _focusRing = F.focusRing focusList,
+      _opForm =
+        mkForm
+          OpForm
+            { _sleeperLowerBound = 1,
+              _sleeperUpperBound = 5,
+              _sleeperExists = 10,
+              _sleeperTimeout = 10
+            },
+      _outputText = ""
+    }
 
 theMap :: AttrMap
 theMap =
@@ -115,18 +182,33 @@ theMap =
       (focusedFormInputAttr, V.black `on` V.yellow)
     ]
 
+appCursor :: State -> [CursorLocation Name] -> Maybe (CursorLocation Name)
+appCursor = F.focusRingCursor (^. focusRing)
+
+theApp :: App State () Name
+theApp =
+  App
+    { appDraw = drawUI,
+      appChooseCursor = appCursor,
+      appHandleEvent = handleEvent,
+      appStartEvent = return (),
+      appAttrMap = const theMap
+    }
+
 ----------------------------------------------------------------------------------------------------
 -- Helper
 ----------------------------------------------------------------------------------------------------
 
+focusList :: [Name]
+focusList =
+  [ SleeperLB,
+    SleeperUB,
+    SleeperE,
+    SleeperT
+  ]
+
 switchFormFocus :: Name -> Int -> Name
-switchFormFocus =
-  loopingList
-    [ SleeperLB,
-      SleeperUB,
-      SleeperE,
-      SleeperT
-    ]
+switchFormFocus = loopingList focusList
 
 ----------------------------------------------------------------------------------------------------
 -- Main
@@ -134,4 +216,7 @@ switchFormFocus =
 
 main :: IO ()
 main = do
-  putStrLn "whatever"
+  let vtyBuilder = mkVty V.defaultConfig
+  initialVty <- vtyBuilder
+
+  void $ customMain initialVty vtyBuilder Nothing theApp initialState
