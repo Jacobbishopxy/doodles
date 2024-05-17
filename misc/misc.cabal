@@ -213,3 +213,12 @@ executable tail-io
     , text
     , vty
     , vty-crossplatform
+
+executable spawn-proc3
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          SpawnProc3.hs
+  build-depends:
+    , base
+    , process
