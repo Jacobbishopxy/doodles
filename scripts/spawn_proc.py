@@ -23,7 +23,6 @@ def main():
 
     p = subprocess.Popen(
         "./scripts/rand_print.sh -h 3 -l 1 -m 5",
-        # script_command,
         executable="/bin/bash",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

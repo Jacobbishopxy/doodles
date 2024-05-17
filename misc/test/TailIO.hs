@@ -10,6 +10,7 @@ module Main where
 import Brick
 import Brick.Focus qualified as F
 import Brick.Forms
+import Brick.Widgets.Center
 import Brick.Widgets.Edit
 import Control.Concurrent
 import Control.Monad (void)
@@ -62,7 +63,7 @@ makeLenses ''State
 drawUI :: State -> [Widget Name]
 drawUI st = [ui]
   where
-    ui = vBox [controlBox st, txt $ T.pack $ st ^. outputText]
+    ui = center $ vBox [controlBox st, txt $ T.pack $ st ^. outputText]
 
 -- control box
 controlBox :: State -> Widget Name
