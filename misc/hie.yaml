@@ -44,3 +44,6 @@ cradle:
 
     - path: "test/SpawnProc3.hs"
       component: "misclib:exe:spawn-proc3"
+
+    - path: "test/BChanDemo.hs"
+      component: "misclib:exe:bchan-demo"

@@ -8,6 +8,7 @@
 module Main where
 
 import Brick
+import Brick.BChan (BChan, newBChan, writeBChan)
 import Brick.Focus qualified as F
 import Brick.Forms
 import Brick.Widgets.Center
@@ -115,10 +116,12 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
   (_, output, err, hd) <-
     liftIO $
       createProcess
-        (proc "bash" ["scripts/rand_print.sh", "-l", show lb, "-h", show ub, "-m", show ex])
+        (proc "/bin/bash" ["scripts/rand_print.sh", "-l", show lb, "-h", show ub, "-m", show ex])
           { std_out = CreatePipe,
             std_err = CreatePipe
           }
+
+  chan <- liftIO $ newBChan 10
 
   -- TODO: concurrent
   -- mVar <- liftIO newEmptyMVar
