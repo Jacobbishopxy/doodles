@@ -8,13 +8,13 @@
 
 import Brick
 import Brick.BChan
+import Brick.Widgets.Border (hBorder)
 import Control.Concurrent (forkIO, threadDelay)
+import Control.Monad
 import Control.Monad.IO.Class (liftIO)
-import Data.Functor (void)
 import Graphics.Vty qualified as V
 import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro
-import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
 import System.IO
 import System.Process
@@ -25,12 +25,12 @@ import System.Process
 
 -- Define custom event type
 data CustomEvent where
-  MessageEvent :: String -> CustomEvent
+  MessageEvent :: (Int, String) -> CustomEvent
 
 -- Define the application state
 data AppState = AppState
-  { _messages :: [String],
-    _eventChan :: BChan CustomEvent
+  { _eventChan :: BChan CustomEvent,
+    _concurrentMsg :: [[String]]
   }
 
 makeLenses ''AppState
@@ -55,37 +55,50 @@ app =
 
 -- Drawing the UI
 drawUI :: AppState -> [Widget Name]
-drawUI s = [vBox $ map (str . show) (_messages s)]
+drawUI s = [ui]
+  where
+    ui = vBox $ [(str . show) b <=> hBorder | b <- _concurrentMsg s]
+
+----------------------------------------------------------------------------------------------------
 
 -- Event handling
 handleEvent :: BrickEvent Name CustomEvent -> EventM Name AppState ()
-handleEvent (AppEvent (MessageEvent msg)) = do
-  liftIO $ putStrLn "msg..."
-  messages %= (msg :)
+handleEvent (AppEvent (MessageEvent (idx, msg))) =
+  modify $ appendMsg idx msg
+-- add a new msg channel
+handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [])) =
+  modify $ concurrentMsg %~ ([] :)
+-- remove the last msg channel
+handleEvent (VtyEvent (V.EvKey (V.KChar 'x') [])) =
+  modify $ concurrentMsg %~ drop 1
+-- send a msg to every msg channel
 handleEvent (VtyEvent (V.EvKey (V.KChar 'n') [])) = do
   st <- get
   let chan = st ^. eventChan
-  liftIO $ putStrLn "Sending msg to Chan"
-  liftIO $ void $ forkIO $ do
-    writeBChan chan $ MessageEvent "Hello BChan!"
-    threadDelay 1000000 -- 1 second delay
+      bs = st ^. concurrentMsg
+  forM_ (zip bs [0 ..]) $ \(_, i) ->
+    liftIO $ void $ forkIO $ do
+      writeBChan chan $ MessageEvent (i, "Hello BChan!")
+      threadDelay 1000000 -- 1 second delay
 handleEvent (VtyEvent (V.EvKey (V.KChar 'm') [])) = do
   st <- get
   let chan = st ^. eventChan
+      bs = st ^. concurrentMsg
 
-  -- Start the subprocess
-  (_, hOut, _, _) <-
-    liftIO $
-      createProcess
-        (proc "/bin/bash" ["./scripts/rand_print.sh", "-h", "3", "-l", "1", "-m", "5"])
-          { std_out = CreatePipe,
-            std_err = CreatePipe
-          }
+  forM_ (zip bs [0 ..]) $ \(_, i) -> do
+    -- Start the subprocess
+    (_, hOut, _, _) <-
+      liftIO $
+        createProcess
+          (proc "/bin/bash" ["./scripts/rand_print.sh", "-h", "3", "-l", "1", "-m", "5"])
+            { std_out = CreatePipe,
+              std_err = CreatePipe
+            }
 
-  case hOut of
-    Just o -> do
-      void $ liftIO $ forkIO $ enqueueOutput o chan
-    _ -> return ()
+    case hOut of
+      Just o -> do
+        void $ liftIO $ forkIO $ enqueueOutput i o chan
+      _ -> return ()
 handleEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
 handleEvent _ = return ()
 
@@ -97,12 +110,15 @@ theMap = attrMap V.defAttr []
 -- Helper
 ----------------------------------------------------------------------------------------------------
 
-enqueueOutput :: Handle -> BChan CustomEvent -> IO ()
-enqueueOutput hOut chan = do
-  putStrLn "enqueueOutput..."
+enqueueOutput :: Int -> Handle -> BChan CustomEvent -> IO ()
+enqueueOutput idx hOut chan = do
+  -- putStrLn "enqueueOutput..."
   line <- hGetLine hOut
-  writeBChan chan (MessageEvent line)
-  enqueueOutput hOut chan -- Continue reading
+  writeBChan chan (MessageEvent (idx, line))
+  enqueueOutput idx hOut chan -- Continue reading
+
+appendMsg :: Int -> String -> AppState -> AppState
+appendMsg idx m = over (concurrentMsg . ix idx) (m :)
 
 ----------------------------------------------------------------------------------------------------
 -- Main
@@ -112,7 +128,7 @@ enqueueOutput hOut chan = do
 main :: IO ()
 main = do
   bchan <- newBChan 10
-  let initialState = AppState [] bchan
+  let initialState = AppState bchan [[]]
 
   -- Run the Brick app
   let buildVty = mkVty V.defaultConfig

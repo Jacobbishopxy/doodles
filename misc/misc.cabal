@@ -120,7 +120,6 @@ executable csv-read6
     , attoparsec
     , base
     , bytestring
-    , containers
     , parsec
     , text
     , vector
