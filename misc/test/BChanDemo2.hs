@@ -10,6 +10,7 @@ import Brick
 import Brick.BChan
 import Brick.Widgets.Border (hBorder)
 import Control.Concurrent (forkIO, threadDelay)
+import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Graphics.Vty qualified as V
@@ -57,7 +58,7 @@ app =
 drawUI :: AppState -> [Widget Name]
 drawUI s = [ui]
   where
-    ui = vBox $ [(str . show) b <=> hBorder | b <- _concurrentMsg s]
+    ui = vBox $ [vBox (map (str . show) b) <=> hBorder | b <- _concurrentMsg s]
 
 ----------------------------------------------------------------------------------------------------
 
@@ -113,9 +114,12 @@ theMap = attrMap V.defAttr []
 enqueueOutput :: Int -> Handle -> BChan CustomEvent -> IO ()
 enqueueOutput idx hOut chan = do
   -- putStrLn "enqueueOutput..."
-  line <- hGetLine hOut
-  writeBChan chan (MessageEvent (idx, line))
-  enqueueOutput idx hOut chan -- Continue reading
+  ans <- try $ hGetLine hOut :: IO (Either IOError String)
+  case ans of
+    Left _ -> return ()
+    Right line -> do
+      writeBChan chan (MessageEvent (idx, line))
+      enqueueOutput idx hOut chan -- Continue reading
 
 appendMsg :: Int -> String -> AppState -> AppState
 appendMsg idx m = over (concurrentMsg . ix idx) (m :)
