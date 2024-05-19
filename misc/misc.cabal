@@ -238,3 +238,19 @@ executable bchan-demo
     , process
     , vty
     , vty-crossplatform
+
+executable bchan-demo2
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  main-is:          BChanDemo2.hs
+  build-depends:
+    , base
+    , brick
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , process
+    , vty
+    , vty-crossplatform

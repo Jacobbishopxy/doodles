@@ -47,3 +47,6 @@ cradle:
 
     - path: "test/BChanDemo.hs"
       component: "misclib:exe:bchan-demo"
+
+    - path: "test/BChanDemo2.hs"
+      component: "misclib:exe:bchan-demo2"

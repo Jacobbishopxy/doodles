@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
--- file: BChanDemo.hs
+-- file: BChanDemo2.hs
 -- author: Jacob Xie
--- date: 2024/05/18 21:57:23 Saturday
+-- date: 2024/05/19 17:34:24 Sunday
 -- brief:
 
 import Brick
@@ -59,10 +59,13 @@ drawUI s = [vBox $ map (str . show) (_messages s)]
 
 -- Event handling
 handleEvent :: BrickEvent Name CustomEvent -> EventM Name AppState ()
-handleEvent (AppEvent (MessageEvent msg)) = messages %= (msg :)
+handleEvent (AppEvent (MessageEvent msg)) = do
+  liftIO $ putStrLn "msg..."
+  messages %= (msg :)
 handleEvent (VtyEvent (V.EvKey (V.KChar 'n') [])) = do
   st <- get
   let chan = st ^. eventChan
+  liftIO $ putStrLn "Sending msg to Chan"
   liftIO $ void $ forkIO $ do
     writeBChan chan $ MessageEvent "Hello BChan!"
     threadDelay 1000000 -- 1 second delay
@@ -82,7 +85,7 @@ handleEvent (VtyEvent (V.EvKey (V.KChar 'm') [])) = do
   case hOut of
     Just o -> do
       void $ liftIO $ forkIO $ enqueueOutput o chan
-    Nothing -> return ()
+    _ -> return ()
 handleEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
 handleEvent _ = return ()
 
@@ -96,6 +99,7 @@ theMap = attrMap V.defAttr []
 
 enqueueOutput :: Handle -> BChan CustomEvent -> IO ()
 enqueueOutput hOut chan = do
+  putStrLn "enqueueOutput..."
   line <- hGetLine hOut
   writeBChan chan (MessageEvent line)
   enqueueOutput hOut chan -- Continue reading
@@ -107,10 +111,10 @@ enqueueOutput hOut chan = do
 -- Main function
 main :: IO ()
 main = do
-  chan <- newBChan 10
-  let initialState = AppState [] chan
+  bchan <- newBChan 10
+  let initialState = AppState [] bchan
 
   -- Run the Brick app
   let buildVty = mkVty V.defaultConfig
   initialVty <- buildVty
-  void $ customMain initialVty buildVty (Just chan) app initialState
+  void $ customMain initialVty buildVty (Just bchan) app initialState
