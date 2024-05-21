@@ -27,9 +27,6 @@ cradle:
     - path: "test/CsvRead7Util.hs"
       component: "misclib:exe:csv-read7"
 
-    - path: "test/SpawnProc.hs"
-      component: "misclib:exe:spawn-proc"
-
     - path: "test/SpawnProc2.hs"
       component: "misclib:exe:spawn-proc2"
 
@@ -44,9 +41,6 @@ cradle:
 
     - path: "test/SpawnProc3.hs"
       component: "misclib:exe:spawn-proc3"
-
-    - path: "test/BChanDemo.hs"
-      component: "misclib:exe:bchan-demo"
 
     - path: "test/BChanDemo2.hs"
       component: "misclib:exe:bchan-demo2"

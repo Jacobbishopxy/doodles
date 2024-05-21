@@ -169,4 +169,30 @@ executable csv-read5
     , text
     , unordered-containers
     , vector
+
+executable spawn-proc
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  main-is:          SpawnProc.hs
+  build-depends:
+    , base
+    , process
+
+executable bchan-demo
+  import:           warnings
+  default-language: GHC2021
+  hs-source-dirs:   test
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  main-is:          BChanDemo.hs
+  build-depends:
+    , base
+    , brick
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , process
+    , vty
+    , vty-crossplatform
+
 ```
