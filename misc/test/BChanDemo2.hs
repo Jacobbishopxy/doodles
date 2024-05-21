@@ -122,7 +122,7 @@ enqueueOutput idx hOut chan = do
       enqueueOutput idx hOut chan -- Continue reading
 
 appendMsg :: Int -> String -> AppState -> AppState
-appendMsg idx m = over (concurrentMsg . ix idx) (m :)
+appendMsg idx m = (concurrentMsg . ix idx) %~ (m :)
 
 ----------------------------------------------------------------------------------------------------
 -- Main

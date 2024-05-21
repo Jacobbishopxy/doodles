@@ -1,0 +1,10 @@
+cradle:
+  cabal:
+    - path: "src"
+      component: "lib:ops"
+
+    - path: "app/Main.hs"
+      component: "ops:exe:ops"
+
+    - path: "test"
+      component: "ops:test:ops-test"

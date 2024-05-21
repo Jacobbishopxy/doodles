@@ -14,4 +14,7 @@ gen-hie-bricks:
 gen-hie-misc:
 	cd misc && gen-hie > hie.yaml
 
-gen-hie: gen-hie-bricks gen-hie-misc
+gen-hie-ops:
+	cd ops && gen-hie > hie.yaml
+
+gen-hie: gen-hie-bricks gen-hie-misc gen-hie-ops
