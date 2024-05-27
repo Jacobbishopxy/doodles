@@ -29,7 +29,7 @@ import Brick.Widgets.Table
 import Control.Monad (void)
 import CronSearchUtil
 import Data.Either (fromRight)
-import Data.List (elemIndex)
+import Data.List (elemIndex, (!?))
 import Data.Text qualified as T
 import Data.Vector qualified as Vec
 import Data.Yaml qualified as Y
@@ -38,7 +38,6 @@ import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro
 import Lens.Micro.Mtl
 import Lens.Micro.TH (makeLenses)
-import MiscLib ((!?))
 import MiscLib.CronSchema
 import System.Environment (getArgs)
 

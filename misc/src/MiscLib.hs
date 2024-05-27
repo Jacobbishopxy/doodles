@@ -7,7 +7,6 @@ module MiscLib
   ( module MiscLib.CronSchema,
     readEnvFile,
     module MiscLib.CsvHelper,
-    (!?),
     loopingList,
   )
 where
@@ -17,20 +16,20 @@ import MiscLib.CronSchema
 import MiscLib.CsvHelper
 import MiscLib.DotenvReader (readEnvFile)
 
--- safe `!!`
-(!?) :: [a] -> Int -> Maybe a
-{-# INLINEABLE (!?) #-}
-xs !? n
-  | n < 0 = Nothing
-  | otherwise =
-      foldr
-        ( \x r k -> case k of
-            0 -> Just x
-            _ -> r (k - 1)
-        )
-        (const Nothing)
-        xs
-        n
+-- deprecated, newer version of GHC has already included
+-- (!?) :: [a] -> Int -> Maybe a
+-- {-# INLINEABLE (!?) #-}
+-- xs !? n
+--   | n < 0 = Nothing
+--   | otherwise =
+--       foldr
+--         ( \x r k -> case k of
+--             0 -> Just x
+--             _ -> r (k - 1)
+--         )
+--         (const Nothing)
+--         xs
+--         n
 
 loopingList :: (Eq a) => [a] -> a -> Int -> a
 loopingList [] _ _ = error "Empty list"
