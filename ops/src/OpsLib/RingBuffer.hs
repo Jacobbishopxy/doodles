@@ -8,6 +8,7 @@ module OpsLib.RingBuffer
     newRingBuffer,
     newRingBuffer',
     appendRingBuffer,
+    clearRingBuffer,
     getRingBuffer,
   )
 where
@@ -58,12 +59,12 @@ appendRingBuffer rb x
         }
   where
     newBuffer = dropCacheSize (cacheSize rb) $ buffer rb `V.snoc` x
+    dropCacheSize n vec
+      | V.length vec <= n = V.empty
+      | otherwise = V.drop n vec
 
--- | Drop the cacheSize of elements from the start of the vector
-dropCacheSize :: Int -> V.Vector a -> V.Vector a
-dropCacheSize n vec
-  | V.length vec <= n = V.empty
-  | otherwise = V.drop n vec
+clearRingBuffer :: RingBuffer a -> RingBuffer a
+clearRingBuffer rb = newRingBuffer $ maxSize rb
 
 getRingBuffer :: RingBuffer a -> V.Vector a
 getRingBuffer rb = V.take (maxSize rb) . V.drop (currentSize rb - maxSize rb) $ buffer rb
