@@ -22,6 +22,6 @@ instance FromJSON CronSettings
 
 main :: IO ()
 main = do
-  args <- getArgs
-  parsedContent <- Y.decodeFileEither (head args) :: IO (Either Y.ParseException CronSettings)
+  (fp : _) <- getArgs
+  parsedContent <- Y.decodeFileEither fp :: IO (Either Y.ParseException CronSettings)
   print parsedContent

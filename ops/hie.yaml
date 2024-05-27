@@ -7,4 +7,7 @@ cradle:
       component: "ops:exe:ops"
 
     - path: "test"
-      component: "ops:test:ops-test"
+      component: "ops:test:test-displayer-list"
+
+    - path: "test"
+      component: "ops:test:test-gpt"
