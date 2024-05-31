@@ -58,7 +58,7 @@ app =
 drawUI :: AppState -> [Widget Name]
 drawUI s = [ui]
   where
-    ui = vBox $ [vBox (map (str . show) b) <=> hBorder | b <- _concurrentMsg s]
+    ui = vBox [vBox (map (str . show) b) <=> hBorder | b <- _concurrentMsg s]
 
 ----------------------------------------------------------------------------------------------------
 
@@ -80,7 +80,7 @@ handleEvent (VtyEvent (V.EvKey (V.KChar 'n') [])) = do
   forM_ (zip bs [0 ..]) $ \(_, i) ->
     liftIO $ void $ forkIO $ do
       writeBChan chan $ MessageEvent (i, "Hello BChan!")
-      threadDelay 1000000 -- 1 second delay
+      threadDelay 1_000_000 -- 1 second delay
 handleEvent (VtyEvent (V.EvKey (V.KChar 'm') [])) = do
   st <- get
   let chan = st ^. eventChan

@@ -13,6 +13,7 @@ module OpsLib.RingBuffer
   )
 where
 
+import Control.Monad
 import qualified Data.Vector as V
 
 data RingBuffer a = RingBuffer
@@ -64,7 +65,7 @@ appendRingBuffer rb x
       | otherwise = V.drop n vec
 
 clearRingBuffer :: RingBuffer a -> RingBuffer a
-clearRingBuffer rb = newRingBuffer $ maxSize rb
+clearRingBuffer = liftM2 newRingBuffer' maxSize cacheSize
 
 getRingBuffer :: RingBuffer a -> V.Vector a
 getRingBuffer rb = V.take (maxSize rb) . V.drop (currentSize rb - maxSize rb) $ buffer rb

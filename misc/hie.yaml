@@ -36,9 +36,6 @@ cradle:
     - path: "test/ListDir.hs"
       component: "misclib:exe:list-dir"
 
-    - path: "test/TailIO.hs"
-      component: "misclib:exe:tail-io"
-
     - path: "test/SpawnProc3.hs"
       component: "misclib:exe:spawn-proc3"
 

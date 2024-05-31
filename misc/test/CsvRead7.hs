@@ -187,8 +187,7 @@ readCsv fp = do
 
 main :: IO ()
 main = do
-  args <- getArgs
-  let f = head args
+  (f : _) <- getArgs
 
   result <- readCsv f
   case result of
