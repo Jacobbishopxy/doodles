@@ -108,17 +108,12 @@ test-suite test-displayer-list
   import:           warnings
   default-language: Haskell2010
   type:             exitcode-stdio-1.0
-
-  -- other-modules:
-  -- other-extensions:
-
   hs-source-dirs:   test
   ghc-options:      -threaded -Wall -Wcompat -O2
   main-is:          DisplayerList.hs
   build-depends:
     , base
     , brick
-    , containers
     , microlens
     , microlens-mtl
     , microlens-th
