@@ -97,8 +97,7 @@ handleEvent (VtyEvent (V.EvKey (V.KChar 'm') [])) = do
             }
 
     case hOut of
-      Just o -> do
-        void $ liftIO $ forkIO $ enqueueOutput i o chan
+      Just o -> void $ liftIO $ forkIO $ enqueueOutput i o chan
       _ -> return ()
 handleEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
 handleEvent _ = return ()

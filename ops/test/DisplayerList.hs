@@ -14,7 +14,7 @@ import qualified Brick.Focus as F
 import Brick.Widgets.Border
 import Brick.Widgets.Edit
 import Brick.Widgets.List
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (forkIO)
 import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
@@ -42,6 +42,7 @@ import System.Process
 data Name = CmdRegion | DisplayerRegion Int deriving (Ord, Show, Eq)
 
 -- DMessage: Key -> displayer index; Value -> message string
+-- note, this can also be an Enum representing different kind of events
 data DisplayerEvent = DMessage (Int, String)
 
 -- type synonym: displayerMessages
@@ -107,7 +108,10 @@ displayerPanel s = vBox [singleDisplayer (focusOn (fst p)) p | p <- zip [0 ..] (
 ----------------------------------------------------------------------------------------------------
 
 handleEvent :: BrickEvent Name DisplayerEvent -> EventM Name AppState ()
+-- Esc
 handleEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
+-- BChan custom event
+handleEvent (AppEvent d) = modify $ customEventHandling d
 -- add one sub-displayer
 handleEvent (VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) = do
   l <- use displayerMessages
@@ -145,7 +149,34 @@ handleEvent (VtyEvent (V.EvKey (V.KUp) [V.MCtrl])) = do
     Just n -> focusRing %= F.focusSetCurrent (focusRingSwitching' (length m) n)
     _ -> return ()
 
--- TODO: handle editor event & list event in each displayer
+-- handle editor event & list event in each displayer
+handleEvent ev@(VtyEvent ve) = do
+  r <- use focusRing
+  case F.focusGetCurrent r of
+    Just CmdRegion ->
+      case ve of
+        -- enter
+        (V.EvKey V.KEnter []) -> do
+          st <- get
+          let chan = st ^. eventChan
+              dm = st ^. displayerMessages
+              msg = concat $ getEditContents $ st ^. inputCmd
+
+          forM_ (zip [0 ..] dm) $ \(i, _) -> do
+            -- start the subprocess
+            (_, hOut, _, _) <-
+              liftIO $
+                createProcess
+                  (proc "/bin/bash" ["./scripts/rand_print.sh", "-h", "3", "-l", "1", "-m", "5"])
+                    { std_out = CreatePipe,
+                      std_err = CreatePipe
+                    }
+            case hOut of
+              Just o -> void $ liftIO $ forkIO $ sendingRandPrint (DMessage (i, msg)) o chan
+              _ -> return ()
+        _ -> zoom inputCmd $ handleEditorEvent ev
+    Just (DisplayerRegion i) -> zoom (outputDisplay . ix i) $ handleListEvent ve
+    _ -> return ()
 
 -- do nothing
 handleEvent _ = return ()
@@ -251,6 +282,23 @@ focusRingSwitching' n r =
   case r of
     CmdRegion -> DisplayerRegion (n - 1)
     (DisplayerRegion i) -> if i == 0 then CmdRegion else DisplayerRegion (i - 1)
+
+-- keyboard key-in message + bash stdout message, sending to `BChan`
+sendingRandPrint :: DisplayerEvent -> Handle -> BChan DisplayerEvent -> IO ()
+sendingRandPrint de hOut chan = do
+  ans <- try $ hGetLine hOut :: IO (Either IOError String)
+  case ans of
+    Left _ -> return ()
+    Right line -> writeBChan chan $ att de line
+  where
+    att :: DisplayerEvent -> String -> DisplayerEvent
+    att (DMessage d) s = DMessage (fst d, snd d <> ": " <> s)
+
+-- receiving custom events and modifying the state
+-- TODO: modify `outputDisplay` as well
+customEventHandling :: DisplayerEvent -> AppState -> AppState
+customEventHandling (DMessage d) =
+  displayerMessages . ix (fst d) %~ \rb -> appendRingBuffer rb (snd d)
 
 ----------------------------------------------------------------------------------------------------
 -- Main
