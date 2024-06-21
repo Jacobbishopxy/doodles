@@ -11,3 +11,6 @@ cradle:
 
     - path: "test"
       component: "ops:test:test-gpt"
+
+    - path: "test"
+      component: "ops:test:test-render-rb"

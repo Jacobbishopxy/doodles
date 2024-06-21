@@ -73,6 +73,7 @@ library
   build-depends:
     , base    ^>=4.19.1.0
     , brick
+    , mtl
     , vector
 
   -- Directories containing source files.
@@ -133,3 +134,22 @@ test-suite test-gpt
   build-depends:
     , base
     , ops
+
+test-suite test-render-rb
+  import:           warnings
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  ghc-options:      -threaded -Wall -Wcompat -O2
+  main-is:          DisplayerList.hs
+  build-depends:
+    , base
+    , brick
+    , microlens
+    , microlens-mtl
+    , microlens-th
+    , ops
+    , process
+    , vector
+    , vty
+    , vty-crossplatform

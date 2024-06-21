@@ -131,5 +131,15 @@ instance Traversable RingBuffer where
 instance L.Splittable RingBuffer where
   splitAt mid rb = (fstP, sndP)
     where
-      fstP = rb {currentSize = mid, buffer = V.take mid $ getRingBuffer rb, lastDropped = False}
-      sndP = rb {currentSize = currentSize rb - mid, buffer = V.drop mid $ getRingBuffer rb, lastDropped = False}
+      fstP =
+        rb
+          { currentSize = mid,
+            buffer = V.take mid $ getRingBuffer rb,
+            lastDropped = False
+          }
+      sndP =
+        rb
+          { currentSize = currentSize rb - mid,
+            buffer = V.drop mid $ getRingBuffer rb,
+            lastDropped = False
+          }
