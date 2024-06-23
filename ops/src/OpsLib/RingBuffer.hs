@@ -13,13 +13,13 @@ module OpsLib.RingBuffer
     isEmpty,
     isFull,
     getCurrentSize,
+    getCacheSize,
     getMaxSize,
     wasElementDropped,
     toList,
   )
 where
 
-import qualified Brick.Widgets.List as L
 import qualified Data.Vector as V
 
 data RingBuffer a = RingBuffer
@@ -56,8 +56,8 @@ newRingBuffer' maxSz cacheSz =
     }
 
 -- | Insert an element into the RingBuffer
-appendRingBuffer :: RingBuffer a -> a -> RingBuffer a
-appendRingBuffer rb x
+appendRingBuffer :: a -> RingBuffer a -> RingBuffer a
+appendRingBuffer x rb
   | currentSize rb < maxSize rb + cacheSize rb =
       rb
         { buffer = buffer rb `V.snoc` x,
@@ -66,15 +66,10 @@ appendRingBuffer rb x
         }
   | otherwise =
       rb
-        { buffer = newBuffer,
-          currentSize = maxSize rb,
+        { buffer = V.drop (cacheSize rb) $ buffer rb `V.snoc` x,
+          currentSize = currentSize rb,
           lastDropped = True
         }
-  where
-    newBuffer = dropCacheSize (cacheSize rb) $ buffer rb `V.snoc` x
-    dropCacheSize n vec
-      | V.length vec <= n = V.empty
-      | otherwise = V.drop n vec
 
 -- | Clear the RingBuffer
 clearRingBuffer :: RingBuffer a -> RingBuffer a
@@ -95,6 +90,10 @@ isFull rb = currentSize rb >= maxSize rb
 -- | Get the current size of the RingBuffer
 getCurrentSize :: RingBuffer a -> Int
 getCurrentSize = currentSize
+
+-- | Get the cache size of the RingBuffer
+getCacheSize :: RingBuffer a -> Int
+getCacheSize = cacheSize
 
 -- | Get the maximum size of the RingBuffer
 getMaxSize :: RingBuffer a -> Int
@@ -127,19 +126,3 @@ instance Traversable RingBuffer where
       (currentSize rb)
       <$> traverse f (buffer rb)
       <*> pure (lastDropped rb)
-
-instance L.Splittable RingBuffer where
-  splitAt mid rb = (fstP, sndP)
-    where
-      fstP =
-        rb
-          { currentSize = mid,
-            buffer = V.take mid $ getRingBuffer rb,
-            lastDropped = False
-          }
-      sndP =
-        rb
-          { currentSize = currentSize rb - mid,
-            buffer = V.drop mid $ getRingBuffer rb,
-            lastDropped = False
-          }

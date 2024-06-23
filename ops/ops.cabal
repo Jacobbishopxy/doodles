@@ -72,8 +72,6 @@ library
   -- Other library packages from which modules are imported.
   build-depends:
     , base    ^>=4.19.1.0
-    , brick
-    , mtl
     , vector
 
   -- Directories containing source files.
@@ -141,7 +139,7 @@ test-suite test-render-rb
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   ghc-options:      -threaded -Wall -Wcompat -O2
-  main-is:          DisplayerList.hs
+  main-is:          RenderRingBuffer.hs
   build-depends:
     , base
     , brick

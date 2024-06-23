@@ -5,9 +5,7 @@
 
 module OpsLib
   ( module OpsLib.RingBuffer,
-    module OpsLib.ListRB,
   )
 where
 
-import OpsLib.ListRB
 import OpsLib.RingBuffer
