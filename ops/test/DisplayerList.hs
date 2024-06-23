@@ -298,7 +298,7 @@ sendingRandPrint de hOut chan = do
 -- TODO: modify `outputDisplay` as well
 customEventHandling :: DisplayerEvent -> AppState -> AppState
 customEventHandling (DMessage d) =
-  displayerMessages . ix (fst d) %~ \rb -> appendRingBuffer rb (snd d)
+  displayerMessages . ix (fst d) %~ \rb -> appendRingBuffer (snd d) rb
 
 ----------------------------------------------------------------------------------------------------
 -- Main
