@@ -45,19 +45,21 @@ data Name = CmdRegion | DisplayerRegion Int deriving (Ord, Show, Eq)
 -- note, this can also be an Enum representing different kind of events
 data DisplayerEvent = DMessage (Int, String)
 
--- type synonym: displayerMessages
-type DMsg = [RingBuffer String]
-
 -- type synonym: outputDisplay
-type DOut = [List Name String]
+type DOut = [ListRB Name String]
+
+data ListRB n e = ListRB
+  { _ringBuffer :: RingBuffer e,
+    _bList :: List n e
+  }
+
+makeLenses ''ListRB
 
 data AppState = AppState
   { -- custom event channel
     _eventChan :: BChan DisplayerEvent,
     -- max displayer number on screen
     _maxDisplayerNum :: Int,
-    -- caching messages
-    _displayerMessages :: DMsg,
     -- brick focusRing
     _focusRing :: F.FocusRing Name,
     -- command input region
@@ -84,26 +86,23 @@ cmdPanel s =
       (renderEditor $ str . unlines)
       (s ^. inputCmd)
 
-singleDisplayer :: Bool -> (Int, List Name String) -> Widget Name
-singleDisplayer onFocus (n, ms) =
-  onF $
-    borderWithLabel
-      (withAttr borderTitleAttr $ str $ "Channel: " <> show n)
-      (renderList ls False ms)
-  where
-    onF = if onFocus then updateAttrMap $ applyAttrMappings borderOnFocusedAttr else id
-    ls :: Bool -> String -> Widget Name
-    ls sel s =
-      let ws = if sel then withAttr resultSelectedListAttr . str else str
-       in ws s
-
 displayerPanel :: AppState -> Widget Name
 displayerPanel s = vBox [singleDisplayer (focusOn (fst p)) p | p <- zip [0 ..] (s ^. outputDisplay)]
   where
     focusOn i =
       case F.focusGetCurrent $ s ^. focusRing of
-        Just (DisplayerRegion i') -> if i == i' then True else False
+        Just (DisplayerRegion i') | i == i' -> True
         _ -> False
+
+singleDisplayer :: Bool -> (Int, ListRB Name String) -> Widget Name
+singleDisplayer onFocus (n, ms) =
+  onF $
+    borderWithLabel
+      (withAttr borderTitleAttr $ str $ "Channel: " <> show n)
+      (renderList listDrawElement False (ms ^. bList))
+  where
+    onF = if onFocus then updateAttrMap $ applyAttrMappings borderOnFocusedAttr else id
+    listDrawElement o e = if o then withAttr selectedListAttr $ str e else withAttr unselectedListAttr $ str e
 
 ----------------------------------------------------------------------------------------------------
 
@@ -114,29 +113,25 @@ handleEvent (VtyEvent (V.EvKey V.KEsc [])) = halt
 handleEvent (AppEvent d) = modify $ customEventHandling d
 -- add one sub-displayer
 handleEvent (VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) = do
-  l <- use displayerMessages
+  l <- use outputDisplay
   m <- use maxDisplayerNum
   focusRing %= F.focusSetCurrent CmdRegion
   if length l == m
     then return ()
-    else
-      (modify $ displayerMessages %~ expandDMsg)
-        >> (modify $ outputDisplay %~ expandODip)
+    else modify $ outputDisplay %~ expandODip
 
 -- remove the last sub-displayer
 handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [V.MCtrl])) = do
-  l <- use displayerMessages
+  l <- use outputDisplay
   focusRing %= F.focusSetCurrent CmdRegion
   if length l == 1
     then return ()
-    else
-      (modify $ displayerMessages %~ recedeDMsg)
-        >> (modify $ outputDisplay %~ recedeODip)
+    else (modify $ outputDisplay %~ recedeODip)
 
 -- move down to the next displayer
 handleEvent (VtyEvent (V.EvKey (V.KDown) [V.MCtrl])) = do
   r <- use focusRing
-  m <- use displayerMessages
+  m <- use outputDisplay
   case F.focusGetCurrent r of
     Just n -> focusRing %= F.focusSetCurrent (focusRingSwitching (length m) n)
     _ -> return ()
@@ -144,7 +139,7 @@ handleEvent (VtyEvent (V.EvKey (V.KDown) [V.MCtrl])) = do
 -- move up to the previous displayer
 handleEvent (VtyEvent (V.EvKey (V.KUp) [V.MCtrl])) = do
   r <- use focusRing
-  m <- use displayerMessages
+  m <- use outputDisplay
   case F.focusGetCurrent r of
     Just n -> focusRing %= F.focusSetCurrent (focusRingSwitching' (length m) n)
     _ -> return ()
@@ -159,7 +154,7 @@ handleEvent ev@(VtyEvent ve) = do
         (V.EvKey V.KEnter []) -> do
           st <- get
           let chan = st ^. eventChan
-              dm = st ^. displayerMessages
+              dm = st ^. outputDisplay
               msg = concat $ getEditContents $ st ^. inputCmd
 
           forM_ (zip [0 ..] dm) $ \(i, _) -> do
@@ -175,7 +170,7 @@ handleEvent ev@(VtyEvent ve) = do
               Just o -> void $ liftIO $ forkIO $ sendingRandPrint (DMessage (i, msg)) o chan
               _ -> return ()
         _ -> zoom inputCmd $ handleEditorEvent ev
-    Just (DisplayerRegion i) -> zoom (outputDisplay . ix i) $ handleListEvent ve
+    Just (DisplayerRegion i) -> zoom (outputDisplay . ix i . bList) $ handleListEvent ve
     _ -> return ()
 
 -- do nothing
@@ -196,25 +191,14 @@ app =
 defaultRingBufferSize :: Int
 defaultRingBufferSize = 100
 
-initDMsg :: Int -> DMsg
-initDMsg n = [newRingBuffer defaultRingBufferSize | _ <- [0 .. n - 1]]
-
 initODip :: Int -> DOut
-initODip n = [l i | i <- [0 .. n - 1]]
-  where
-    l i' = list (DisplayerRegion i') Vec.empty 1
+initODip n = [createList 100 i | i <- [0 .. n - 1]]
 
 initFRing :: Int -> [Name]
 initFRing n = CmdRegion : [DisplayerRegion i | i <- [0 .. n]]
 
-expandDMsg :: DMsg -> DMsg
-expandDMsg = (++ [newRingBuffer defaultRingBufferSize])
-
-recedeDMsg :: DMsg -> DMsg
-recedeDMsg = init
-
 expandODip :: DOut -> DOut
-expandODip l = l ++ [list (DisplayerRegion $ length l + 1) Vec.empty 1]
+expandODip l = l ++ [createList 100 (length l + 1)]
 
 recedeODip :: DOut -> DOut
 recedeODip = init
@@ -225,7 +209,6 @@ initState bc n =
   AppState
     { _eventChan = bc,
       _maxDisplayerNum = 8,
-      _displayerMessages = initDMsg n,
       -- brick focusRing
       _focusRing = F.focusRing $ initFRing n,
       -- command input region
@@ -259,6 +242,12 @@ borderOnFocusedAttr =
     (borderTitleAttr, fg V.yellow)
   ]
 
+selectedListAttr :: AttrName
+selectedListAttr = listSelectedAttr <> attrName "selectedList"
+
+unselectedListAttr :: AttrName
+unselectedListAttr = listAttr <> listSelectedAttr <> attrName "unselectedList"
+
 resultSelectedListAttr :: AttrName
 resultSelectedListAttr = listSelectedAttr <> attrName "resultSelectedList"
 
@@ -268,6 +257,19 @@ resultUnselectedListAttr = listAttr <> listSelectedAttr <> attrName "resultUnsel
 ----------------------------------------------------------------------------------------------------
 -- Helper
 ----------------------------------------------------------------------------------------------------
+
+-- append a ListRB: msg, idx, listRB
+appendList :: e -> Int -> ListRB Name e -> ListRB Name e
+appendList e i lrb =
+  let newRb = appendRingBuffer e $ lrb ^. ringBuffer
+      l = lrb ^. bList
+   in if wasElementDropped newRb
+        then ListRB newRb $ list (DisplayerRegion i) (getRingBuffer newRb) 1
+        else ListRB newRb $ listInsert (length l) e l
+
+-- create a ListRB: size, idx
+createList :: Int -> Int -> ListRB Name e
+createList s i = ListRB (newRingBuffer s) (list (DisplayerRegion i) Vec.empty 1)
 
 -- move downward
 focusRingSwitching :: Int -> Name -> Name
@@ -295,10 +297,9 @@ sendingRandPrint de hOut chan = do
     att (DMessage d) s = DMessage (fst d, snd d <> ": " <> s)
 
 -- receiving custom events and modifying the state
--- TODO: modify `outputDisplay` as well
 customEventHandling :: DisplayerEvent -> AppState -> AppState
-customEventHandling (DMessage d) =
-  displayerMessages . ix (fst d) %~ \rb -> appendRingBuffer (snd d) rb
+customEventHandling (DMessage (idx, msg)) =
+  outputDisplay . ix idx %~ \bl -> appendList msg idx bl
 
 ----------------------------------------------------------------------------------------------------
 -- Main

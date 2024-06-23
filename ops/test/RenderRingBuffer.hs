@@ -54,10 +54,9 @@ drawUI st = [m <=> (info <+> hint)]
     ed =
       borderWithLabel (str "input") $
         F.withFocusRing (st ^. focusRing) (renderEditor $ str . unlines) (st ^. inputText)
-    l = case F.focusGetCurrent $ st ^. focusRing of
-      Just DisplayList -> listDrawElement
-      _ -> listDrawElement'
-    box = borderWithLabel (str "display") $ renderList l True (st ^. outputDisplay . bList)
+    box =
+      borderWithLabel (str "display") $
+        renderList (listDrawElement st) True (st ^. outputDisplay . bList)
     m = center $ vBox [ed, box]
     rb = st ^. outputDisplay . ringBuffer
     info =
@@ -79,14 +78,12 @@ drawUI st = [m <=> (info <+> hint)]
               str " "
             ]
 
-listDrawElement :: Bool -> String -> Widget Name
-listDrawElement sel e =
-  if sel
-    then withAttr selectedListAttr $ str e
-    else withAttr unselectedListAttr $ str e
-
-listDrawElement' :: Bool -> String -> Widget Name
-listDrawElement' _ e = withAttr unselectedListAttr $ str e
+-- render list
+listDrawElement :: AppState -> Bool -> String -> Widget Name
+listDrawElement st sel e =
+  case F.focusGetCurrent $ st ^. focusRing of
+    Just DisplayList | sel -> withAttr selectedListAttr $ str e
+    _ -> withAttr unselectedListAttr $ str e
 
 ----------------------------------------------------------------------------------------------------
 -- Handler
@@ -108,16 +105,16 @@ appEvent _ = return ()
 
 -- handle input
 handleInput :: EventM Name AppState ()
-handleInput = modify $ \st -> do
+handleInput = modify $ \st ->
   let inp = concat $ getEditContents $ st ^. inputText
-  if inp == ""
-    then st
-    else
-      st
-        & outputDisplay
-        %~ appendList inp
-        & inputText
-        .~ editor EditInput (Just 1) ""
+   in if inp == ""
+        then st
+        else
+          st
+            & outputDisplay
+            %~ appendList inp
+            & inputText
+            .~ editor EditInput (Just 1) ""
 
 -- switch between EditInput & DisplayList
 switchRegion :: EventM Name AppState ()
