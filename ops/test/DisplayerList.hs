@@ -76,7 +76,7 @@ makeLenses ''AppState
 
 -- UI
 drawUI :: AppState -> [Widget Name]
-drawUI s = [vBox [cmdPanel s <=> displayerPanel s]]
+drawUI s = [cmdPanel s <=> displayerPanel s]
 
 cmdPanel :: AppState -> Widget Name
 cmdPanel s =
@@ -102,7 +102,7 @@ singleDisplayer onFocus (n, ms) =
       (renderList listDrawElement False (ms ^. bList))
   where
     onF = if onFocus then updateAttrMap $ applyAttrMappings borderOnFocusedAttr else id
-    listDrawElement o e = if o then withAttr selectedListAttr $ str e else withAttr unselectedListAttr $ str e
+    listDrawElement sel e = if onFocus && sel then withAttr selectedListAttr $ str e else withAttr unselectedListAttr $ str e
 
 ----------------------------------------------------------------------------------------------------
 
@@ -148,33 +148,35 @@ handleEvent (VtyEvent (V.EvKey (V.KUp) [V.MCtrl])) = do
 handleEvent ev@(VtyEvent ve) = do
   r <- use focusRing
   case F.focusGetCurrent r of
-    Just CmdRegion ->
-      case ve of
-        -- enter
-        (V.EvKey V.KEnter []) -> do
-          st <- get
-          let chan = st ^. eventChan
-              dm = st ^. outputDisplay
-              msg = concat $ getEditContents $ st ^. inputCmd
-
-          forM_ (zip [0 ..] dm) $ \(i, _) -> do
-            -- start the subprocess
-            (_, hOut, _, _) <-
-              liftIO $
-                createProcess
-                  (proc "/bin/bash" ["./scripts/rand_print.sh", "-h", "3", "-l", "1", "-m", "5"])
-                    { std_out = CreatePipe,
-                      std_err = CreatePipe
-                    }
-            case hOut of
-              Just o -> void $ liftIO $ forkIO $ sendingRandPrint (DMessage (i, msg)) o chan
-              _ -> return ()
-        _ -> zoom inputCmd $ handleEditorEvent ev
+    Just CmdRegion -> case ve of
+      (V.EvKey V.KEnter []) -> handleKeyEnter
+      _ -> zoom inputCmd $ handleEditorEvent ev
     Just (DisplayerRegion i) -> zoom (outputDisplay . ix i . bList) $ handleListEvent ve
     _ -> return ()
 
 -- do nothing
 handleEvent _ = return ()
+
+-- handle key enter on CmdRegion
+handleKeyEnter :: EventM Name AppState ()
+handleKeyEnter = do
+  st <- get
+  let chan = st ^. eventChan
+      dm = st ^. outputDisplay
+      msg = concat $ getEditContents $ st ^. inputCmd
+
+  forM_ (zip [0 ..] dm) $ \(i, _) -> do
+    -- start the subprocess
+    (_, hOut, _, _) <-
+      liftIO $
+        createProcess
+          (proc "/bin/bash" ["./scripts/rand_print.sh", "-h", "3", "-l", "1", "-m", "5"])
+            { std_out = CreatePipe,
+              std_err = CreatePipe
+            }
+    case hOut of
+      Just o -> void $ liftIO $ forkIO $ sendingRandPrint (DMessage (i, msg)) o chan
+      _ -> return ()
 
 ----------------------------------------------------------------------------------------------------
 
@@ -291,7 +293,9 @@ sendingRandPrint de hOut chan = do
   ans <- try $ hGetLine hOut :: IO (Either IOError String)
   case ans of
     Left _ -> return ()
-    Right line -> writeBChan chan $ att de line
+    Right line -> do
+      writeBChan chan $ att de line
+      sendingRandPrint (att de line) hOut chan -- continue reading
   where
     att :: DisplayerEvent -> String -> DisplayerEvent
     att (DMessage d) s = DMessage (fst d, snd d <> ": " <> s)
@@ -299,7 +303,7 @@ sendingRandPrint de hOut chan = do
 -- receiving custom events and modifying the state
 customEventHandling :: DisplayerEvent -> AppState -> AppState
 customEventHandling (DMessage (idx, msg)) =
-  outputDisplay . ix idx %~ \bl -> appendList msg idx bl
+  outputDisplay . ix idx %~ appendList msg idx
 
 ----------------------------------------------------------------------------------------------------
 -- Main
