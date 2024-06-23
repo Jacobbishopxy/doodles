@@ -66,8 +66,8 @@ appendRingBuffer x rb
         }
   | otherwise =
       rb
-        { buffer = V.drop (cacheSize rb) $ buffer rb `V.snoc` x,
-          currentSize = currentSize rb,
+        { buffer = V.drop (cacheSize rb) (buffer rb) `V.snoc` x,
+          currentSize = maxSize rb + 1,
           lastDropped = True
         }
 
