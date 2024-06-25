@@ -34,6 +34,10 @@ import System.Process
   different IP address).
 -}
 
+-- TODO:
+-- 1. use `MVar` to block multiple input at once
+-- 2. always show the last line of the list in each displayer
+
 ----------------------------------------------------------------------------------------------------
 -- ADT
 ----------------------------------------------------------------------------------------------------
@@ -165,18 +169,22 @@ handleKeyEnter = do
       dm = st ^. outputDisplay
       msg = concat $ getEditContents $ st ^. inputCmd
 
-  forM_ (zip [0 ..] dm) $ \(i, _) -> do
-    -- start the subprocess
-    (_, hOut, _, _) <-
-      liftIO $
-        createProcess
-          (proc "/bin/bash" ["./scripts/rand_print.sh", "-h", "3", "-l", "1", "-m", "5"])
-            { std_out = CreatePipe,
-              std_err = CreatePipe
-            }
-    case hOut of
-      Just o -> void $ liftIO $ forkIO $ sendingRandPrint (DMessage (i, msg)) o chan
-      _ -> return ()
+  if msg == ""
+    then return ()
+    else forM_ (zip [0 ..] dm) $ \(i, _) -> do
+      -- clear input
+      modify $ inputCmd .~ editor CmdRegion (Just 1) ""
+      -- start the subprocess
+      (_, hOut, _, _) <-
+        liftIO $
+          createProcess
+            (proc "/bin/bash" ["./scripts/rand_print.sh", "-h", "3", "-l", "1", "-m", "5"])
+              { std_out = CreatePipe,
+                std_err = CreatePipe
+              }
+      case hOut of
+        Just o -> void $ liftIO $ forkIO $ sendingRandPrint (DMessage (i, msg)) o chan
+        _ -> return ()
 
 ----------------------------------------------------------------------------------------------------
 
@@ -184,7 +192,7 @@ app :: App AppState DisplayerEvent Name
 app =
   App
     { appDraw = drawUI,
-      appChooseCursor = neverShowCursor,
+      appChooseCursor = showFirstCursor,
       appHandleEvent = handleEvent,
       appAttrMap = const theMap,
       appStartEvent = return ()
@@ -295,10 +303,10 @@ sendingRandPrint de hOut chan = do
     Left _ -> return ()
     Right line -> do
       writeBChan chan $ att de line
-      sendingRandPrint (att de line) hOut chan -- continue reading
+      sendingRandPrint de hOut chan -- continue reading
   where
     att :: DisplayerEvent -> String -> DisplayerEvent
-    att (DMessage d) s = DMessage (fst d, snd d <> ": " <> s)
+    att (DMessage (i, m)) s = DMessage (i, m <> ": " <> s)
 
 -- receiving custom events and modifying the state
 customEventHandling :: DisplayerEvent -> AppState -> AppState

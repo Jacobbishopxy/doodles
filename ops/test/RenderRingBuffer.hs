@@ -109,12 +109,7 @@ handleInput = modify $ \st ->
   let inp = concat $ getEditContents $ st ^. inputText
    in if inp == ""
         then st
-        else
-          st
-            & outputDisplay
-            %~ appendList inp
-            & inputText
-            .~ editor EditInput (Just 1) ""
+        else st & outputDisplay %~ appendList inp & inputText .~ editor EditInput (Just 1) ""
 
 -- switch between EditInput & DisplayList
 switchRegion :: EventM Name AppState ()
