@@ -14,3 +14,6 @@ cradle:
 
     - path: "test"
       component: "ops:test:test-render-rb"
+
+    - path: "test"
+      component: "ops:test:test-thread-manager"

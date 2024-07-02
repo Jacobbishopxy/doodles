@@ -5,7 +5,11 @@
 
 module OpsLib
   ( module OpsLib.RingBuffer,
+    module OpsLib.ThreadManager,
+    module OpsLib.StateThreadM,
   )
 where
 
 import OpsLib.RingBuffer
+import OpsLib.StateThreadM
+import OpsLib.ThreadManager
