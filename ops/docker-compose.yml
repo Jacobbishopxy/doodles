@@ -1,0 +1,14 @@
+version: "3"
+services:
+  pg:
+    restart: always
+    container_name: my-pg
+    image: postgres:16.3
+    ports:
+      - "0.0.0.0:5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=1
+    volumes:
+      - ./data:/var/lib/postgresql/data:z
+      - /etc/localtime:/etc/localtime:ro
+    shm_size: 2gb
