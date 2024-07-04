@@ -17,3 +17,6 @@ cradle:
 
     - path: "test"
       component: "ops:test:test-thread-manager"
+
+    - path: "test"
+      component: "ops:test:test-hasql-demo"
