@@ -18,5 +18,8 @@ cradle:
     - path: "test"
       component: "ops:test:test-thread-manager"
 
-    - path: "test"
-      component: "ops:test:test-hasql-demo"
+    - path: "test/HasqlDemo.hs"
+      component: "ops:exe:test-hasql-demo"
+
+    - path: "test/HasqlDemo2.hs"
+      component: "ops:exe:test-hasql-demo2"

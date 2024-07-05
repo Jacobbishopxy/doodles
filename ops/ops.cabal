@@ -97,7 +97,7 @@ test-suite test-thread-manager
     , base
     , ops
 
-test-suite test-hasql-demo
+executable test-hasql-demo
   import:           warnings
   default-language: Haskell2010
   type:             exitcode-stdio-1.0
@@ -105,5 +105,20 @@ test-suite test-hasql-demo
   main-is:          HasqlDemo.hs
   build-depends:
     , base
-    , hasql  ^>=1.8
+    , hasql
     , ops
+
+executable test-hasql-demo2
+  import:           warnings
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          HasqlDemo2.hs
+  build-depends:
+    , base
+    , bytestring
+    , contravariant-extras
+    , hasql
+    , ops
+    , text
+    , vector
