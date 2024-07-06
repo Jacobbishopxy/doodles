@@ -119,6 +119,7 @@ executable test-hasql-demo2
     , bytestring
     , contravariant-extras
     , hasql
+    , hasql-transaction
     , ops
     , text
     , vector

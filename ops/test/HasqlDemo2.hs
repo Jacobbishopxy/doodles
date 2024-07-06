@@ -12,9 +12,15 @@ import Data.ByteString
 import Data.Int (Int32)
 import Data.Text
 import Data.Vector
+import qualified Hasql.Connection as C
 import qualified Hasql.Decoders as D
 import qualified Hasql.Encoders as E
-import Hasql.Statement
+import Hasql.Session (Session, run, statement)
+import Hasql.Statement (Statement (..))
+
+----------------------------------------------------------------------------------------------------
+-- Statements
+----------------------------------------------------------------------------------------------------
 
 findUserByEmail :: Statement Text (Maybe Int32)
 findUserByEmail =
@@ -26,7 +32,7 @@ findUserByEmail =
 
 insertUser :: Statement (Text, ByteString, Text, Maybe Text) Int32
 insertUser =
-  let sql =
+  let s =
         "insert into user (email, password, name, phone) \
         \values ($1, $2, $3, $4) \
         \returning id"
@@ -38,11 +44,11 @@ insertUser =
           (E.param $ E.nullable E.text)
       decoder =
         D.singleRow $ (D.column . D.nonNullable) D.int4
-   in Statement sql encoder decoder True
+   in Statement s encoder decoder True
 
 authenticateUser :: Statement (Text, ByteString) (Maybe (Bool, Int32))
 authenticateUser =
-  let sql = "select password = $2, id from user where email = $1"
+  let s = "select password = $2, id from user where email = $1"
       encoder =
         contrazip2
           (E.param $ E.nonNullable E.text)
@@ -52,11 +58,11 @@ authenticateUser =
           (,)
             <$> D.column (D.nonNullable D.bool)
             <*> D.column (D.nonNullable D.int4)
-   in Statement sql encoder decoder True
+   in Statement s encoder decoder True
 
 getUserDetails :: Statement Int32 (Maybe (Text, Text, Maybe Text, Bool))
 getUserDetails =
-  let sql = "select name, email, phone, admin from user where id = $1"
+  let s = "select name, email, phone, admin from user where id = $1"
       encoder = E.param $ E.nonNullable E.int4
       decoder =
         D.rowMaybe $
@@ -65,11 +71,11 @@ getUserDetails =
             <*> D.column (D.nonNullable D.text)
             <*> D.column (D.nullable D.text)
             <*> D.column (D.nonNullable D.bool)
-   in Statement sql encoder decoder True
+   in Statement s encoder decoder True
 
 getUserNotifications :: Statement Int32 (Vector (Int32, Text, Bool))
 getUserNotifications =
-  let sql = "select id, message, read from notification where user = $1"
+  let s = "select id, message, read from notification where user = $1"
       encoder = E.param $ E.nonNullable E.int4
       decoder =
         D.rowVector $
@@ -77,7 +83,7 @@ getUserNotifications =
             <$> D.column (D.nonNullable D.int4)
             <*> D.column (D.nonNullable D.text)
             <*> D.column (D.nonNullable D.bool)
-   in Statement sql encoder decoder True
+   in Statement s encoder decoder True
 
 markNotificationRead :: Statement Int32 Bool
 markNotificationRead =
@@ -100,6 +106,58 @@ insertNotification =
     encoder = contrazip2 (E.param $ E.nonNullable E.int4) (E.param $ E.nonNullable E.text)
     decoder = D.singleRow (D.column $ D.nonNullable D.int4)
 
+----------------------------------------------------------------------------------------------------
+-- Transactions
+----------------------------------------------------------------------------------------------------
+
+-- tRegister :: Text -> ByteString -> Text -> Maybe Text -> T.Transaction (Bool, Int32)
+-- tRegister email password name phone = session TS.Write TS.Serializable $ do
+--   possibleExistingId <- statement email findUserByEmail
+--   case possibleExistingId of
+--     Just existingId -> return (False, existingId)
+--     Nothing -> do
+--       newId <- statement (email, password, name, phone) insertUser
+--       return (True, newId)
+
+-- tRegister' :: Text -> ByteString -> Text -> Maybe Text -> T.Transaction (Bool, Int32)
+-- tRegister' email password name phone =
+--   fromMaybeS
+--     (fmap (\newId -> (True, newId)) (tInsertUser email password name phone))
+--     (fmap (fmap (\existingId -> (False, existingId))) (tFindUserByEmail email))
+
+-- tFindUserByEmail :: Text -> T.Transaction (Maybe Int32)
+-- tFindUserByEmail  = undefined
+
+-- tInsertUser :: Text -> ByteString -> Text -> Maybe Text -> T.Transaction Int32
+-- tInsertUser email password name phone = undefined
+
+----------------------------------------------------------------------------------------------------
+-- Session
+----------------------------------------------------------------------------------------------------
+
+authenticate' :: Text -> ByteString -> Session (Maybe (Bool, Int32))
+authenticate' email password = statement (email, password) authenticateUser
+
+register :: Text -> ByteString -> Text -> Maybe Text -> Session (Bool, Int32)
+register = undefined
+
+getUserDetails' :: Int32 -> Session (Maybe (Text, Text, Maybe Text, Bool))
+getUserDetails' userId = statement userId getUserDetails
+
+getNotifications :: Int32 -> Session (Vector (Int32, Text, Bool))
+getNotifications userId = statement userId getUserNotifications
+
+markNotificationRead' :: Int32 -> Session Bool
+markNotificationRead' notificationId = statement notificationId markNotificationRead
+
+----------------------------------------------------------------------------------------------------
+-- Main
+----------------------------------------------------------------------------------------------------
+
 main :: IO ()
 main = do
-  putStrLn "whatever"
+  Right connection <- C.acquire cfg
+  result <- run (authenticate' "foo@gmail.com" "abc123") connection
+  print result
+  where
+    cfg = C.settings "localhost" 5432 "hasql" "hasql" "postgres"
