@@ -23,3 +23,6 @@ cradle:
 
     - path: "test/HasqlDemo2.hs"
       component: "ops:exe:test-hasql-demo2"
+
+    - path: "test/HasqlDemo3.hs"
+      component: "ops:exe:test-hasql-demo3"
