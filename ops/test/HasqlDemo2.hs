@@ -26,6 +26,10 @@ import qualified Hasql.Transaction.Sessions as TS
 -- Statements
 ----------------------------------------------------------------------------------------------------
 
+simpleExec :: ByteString -> S.Statement () ()
+simpleExec s =
+  S.Statement s E.noParams D.noResult True
+
 -- `Session` 是在一次连接（查询）的上下文中执行的一批操作；
 -- `Statement` 是严格的单语句查询的规范，可以被参数化以及提前预备（如何进行查询）；
 -- `Statement` 由 SQL 模板，入参编码，返回值解码，以及是否准备好的标记所构成；
@@ -38,13 +42,13 @@ cleanUp connection = R.run cleanUpSession connection
     cleanUpSession = R.statement () cleanUpStatement
     cleanUpStatement :: S.Statement () ()
     cleanUpStatement = S.Statement rawSql E.noParams D.noResult True
-    rawSql = "truncate user, notification, notification_user"
+    rawSql = "truncate \"user\", notification"
 
 -- 根据 Email 查找用户
 findUserByEmail :: S.Statement Text (Maybe Int32)
 findUserByEmail =
   S.Statement
-    "select id from user where email = $1"
+    "select id from \"user\" where email = $1"
     (E.param $ E.nonNullable E.text)
     (D.rowMaybe $ D.column $ D.nonNullable D.int4)
     True
@@ -53,7 +57,7 @@ findUserByEmail =
 insertUser :: S.Statement (Text, ByteString, Text, Maybe Text) Int32
 insertUser =
   let s =
-        "insert into user (email, password, name, phone) \
+        "insert into \"user\" (email, password, name, phone) \
         \values ($1, $2, $3, $4) \
         \returning id"
       encoder =
@@ -69,7 +73,7 @@ insertUser =
 -- 通过 Email 与 password 验证用户
 authenticateUser :: S.Statement (Text, ByteString) (Maybe (Bool, Int32))
 authenticateUser =
-  let s = "select password = $2, id from user where email = $1"
+  let s = "select password = $2, id from \"user\" where email = $1"
       encoder =
         contrazip2
           (E.param $ E.nonNullable E.text)
@@ -82,24 +86,25 @@ authenticateUser =
    in S.Statement s encoder decoder True
 
 -- 获取用户明细
-getUserDetails :: S.Statement Int32 (Maybe (Text, Text, Maybe Text, Bool))
+getUserDetails :: S.Statement Text (Maybe (Int32, Text, Text, Maybe Text, Maybe Bool))
 getUserDetails =
-  let s = "select name, email, phone, admin from user where id = $1"
-      encoder = E.param $ E.nonNullable E.int4
+  let s = "select id, name, email, phone, admin from \"user\" where email = $1"
+      encoder = E.param $ E.nonNullable E.text
       decoder =
         D.rowMaybe $
-          (,,,)
-            <$> D.column (D.nonNullable D.text)
+          (,,,,)
+            <$> D.column (D.nonNullable D.int4)
+            <*> D.column (D.nonNullable D.text)
             <*> D.column (D.nonNullable D.text)
             <*> D.column (D.nullable D.text)
-            <*> D.column (D.nonNullable D.bool)
+            <*> D.column (D.nullable D.bool)
    in S.Statement s encoder decoder True
 
 -- 插入通知
 insertNotification :: S.Statement (Int32, Text) Int32
 insertNotification =
   S.Statement
-    "insert into notification (user, message, read)\
+    "insert into notification (\"user\", message, read)\
     \values ($1, $2, 'false')\
     \returning id"
     encoder
@@ -112,7 +117,7 @@ insertNotification =
 -- 获取通知
 getNotifications :: S.Statement Int32 (Vector (Int32, Text, Bool))
 getNotifications =
-  let s = "select id, message, read from notification where user = $1"
+  let s = "select id, message, read from notification where \"user\" = $1"
       encoder = E.param $ E.nonNullable E.int4
       decoder =
         D.rowVector $
@@ -143,6 +148,31 @@ markNotificationsRead =
 ----------------------------------------------------------------------------------------------------
 -- Transactions
 ----------------------------------------------------------------------------------------------------
+
+-- 初始化
+initTables :: T.Transaction ()
+initTables = do
+  _ <- T.statement () (simpleExec t1)
+  _ <- T.statement () (simpleExec t2)
+  _ <- T.statement () (simpleExec t3)
+
+  return ()
+  where
+    t1 =
+      "create table \"user\" (\
+      \id serial not null primary key, \
+      \email text not null unique, \
+      \password bytea not null, \
+      \name text not null, \
+      \phone text null, \
+      \admin bool null);"
+    t2 =
+      "create table notification (\
+      \id serial not null primary key, \
+      \\"user\" int4 not null references \"user\", \
+      \message text not null, \
+      \read bool not null);"
+    t3 = "create index \"notification_user\" on \"notification\" (\"user\");"
 
 -- 注册用户
 -- 已存在的 Email 不可注册用户
@@ -190,18 +220,21 @@ tFindUserByEmail email = T.statement email findUserByEmail
 -- 执行函数，业务意义
 ----------------------------------------------------------------------------------------------------
 
+initAll :: R.Session ()
+initAll = TS.transaction TS.ReadCommitted TS.Write initTables
+
 authenticate :: Text -> ByteString -> R.Session (Maybe (Bool, Int32))
 authenticate email password = R.statement (email, password) authenticateUser
 
 register :: Text -> ByteString -> Text -> Maybe Text -> R.Session (Bool, Int32)
 register email password name phone =
   TS.transaction
-    TS.RepeatableRead
+    TS.ReadCommitted
     TS.Write
     (registerUser email password name phone)
 
-getDetails :: Int32 -> R.Session (Maybe (Text, Text, Maybe Text, Bool))
-getDetails userId = R.statement userId getUserDetails
+getDetails :: Text -> R.Session (Maybe (Int32, Text, Text, Maybe Text, Maybe Bool))
+getDetails email = R.statement email getUserDetails
 
 pushNotification :: Text -> Text -> R.Session Bool
 pushNotification email notification =
@@ -228,6 +261,9 @@ main :: IO ()
 main = do
   Right connection <- C.acquire cfg
 
+  -- 初始化
+  _ <- R.run initAll connection
+
   let uEmail = "foo@gmail.com"
       uPswd = "abc123"
       uName = "foo"
@@ -239,17 +275,13 @@ main = do
 
   -- 注册用户
   res2 <- R.run (register uEmail uPswd uName (Just uPhone)) connection
-  -- 获取用户注册结果
-  id' <- case res2 of
-    Right (t, i) | t == True -> do
-      putStrLn $ "user id " <> show i
-      return i
-    _ -> error "failed to register the user!"
+  print res2
 
-  -- 通过 id 查找用户明细
-  res3 <- R.run (getDetails id') connection
-  case res3 of
-    Right (Just d) -> print d
+  -- 通过 Email 查找用户明细
+  res3 <- R.run (getDetails uEmail) connection
+  print res3
+  id' <- case res3 of
+    Right (Just d@(i, _, _, _, _)) -> do print d; return i
     _ -> error "failed to get the user detail!"
 
   -- 向用户推送通知
@@ -274,4 +306,4 @@ main = do
 ----------------------------------------------------------------------------------------------------
 
 cfg :: C.Settings
-cfg = C.settings "localhost" 5432 "hasql" "hasql" "postgres"
+cfg = C.settings "localhost" 5432 "postgres" "1" "hasql"
