@@ -26,3 +26,6 @@ cradle:
 
     - path: "test/HasqlDemo3.hs"
       component: "ops:exe:test-hasql-demo3"
+
+    - path: "test/AfTasks.hs"
+      component: "ops:exe:test-af-tasks"

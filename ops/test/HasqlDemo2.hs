@@ -7,7 +7,7 @@
 
 module Main where
 
-import Contravariant.Extras.Contrazip
+import Contravariant.Extras.Contrazip (contrazip2, contrazip4)
 import Data.ByteString (ByteString)
 import Data.Int (Int32)
 import qualified Data.List as List

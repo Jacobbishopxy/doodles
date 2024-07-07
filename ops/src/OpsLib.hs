@@ -7,9 +7,11 @@ module OpsLib
   ( module OpsLib.RingBuffer,
     module OpsLib.ThreadManager,
     module OpsLib.StateThreadM,
+    module OpsLib.AfTasks,
   )
 where
 
+import OpsLib.AfTasks
 import OpsLib.RingBuffer
 import OpsLib.StateThreadM
 import OpsLib.ThreadManager

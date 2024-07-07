@@ -15,14 +15,21 @@ library
   import:           warnings
   exposed-modules:
     OpsLib
+    OpsLib.AfTasks
     OpsLib.RingBuffer
     OpsLib.StateThreadM
     OpsLib.ThreadManager
 
   build-depends:
-    , base        ^>=4.19.1.0
+    , base                  ^>=4.19.1.0
+    , bytestring
     , containers
+    , contravariant-extras
+    , hasql
+    , hasql-transaction
     , mtl
+    , text
+    , time
     , vector
 
   hs-source-dirs:   src
@@ -136,3 +143,13 @@ executable test-hasql-demo3
     , scientific
     , text
     , vector
+
+executable test-af-tasks
+  import:           warnings
+  default-language: Haskell2010
+  hs-source-dirs:   test
+  main-is:          AfTasks.hs
+  build-depends:
+    , base
+    , hasql
+    , ops
