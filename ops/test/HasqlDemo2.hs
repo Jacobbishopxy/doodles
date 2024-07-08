@@ -10,7 +10,6 @@ module Main where
 import Contravariant.Extras.Contrazip (contrazip2, contrazip4)
 import Data.ByteString (ByteString)
 import Data.Int (Int32)
-import qualified Data.List as List
 import Data.Text (Text)
 import Data.Vector (Vector, fromList, toList)
 import qualified Data.Vector as V
@@ -141,7 +140,7 @@ markNotificationsRead :: S.Statement (Vector Int32) (Vector Int32)
 markNotificationsRead =
   S.Statement
     "update notification set read = true where id = any ($1) returning id"
-    (E.param $ E.nonNullable $ E.array $ E.dimension List.foldl' (E.element $ E.nonNullable E.int4))
+    (E.param $ E.nonNullable $ E.foldableArray $ E.nonNullable E.int4)
     (D.rowVector $ D.column (D.nonNullable D.int4))
     True
 

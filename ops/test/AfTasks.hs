@@ -15,8 +15,8 @@ main :: IO ()
 main = do
   Right connection <- C.acquire cfg
 
-  res <- R.run (getTaskInstance "cronjob_monitor" "20230728" "start") connection
-  print res
+  res2 <- R.run (getTaskInstancesByStates "cronjob_trade" "20240708" [TsFailed]) connection
+  print res2
 
   putStrLn "done"
 
