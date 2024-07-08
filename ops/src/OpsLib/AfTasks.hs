@@ -129,10 +129,7 @@ sGetRunIdFromXCom =
 -- statement: dag_id, run_id, task_id -> S<TaskInstance>
 sGetTaskInstance :: S.Statement (Text, Text, Text) (Maybe TaskInstance)
 sGetTaskInstance =
-  let s =
-        "select dag_id, run_id, task_id, start_date, end_date, duration, state, try_number, max_tries, hostname, unixname, job_id, pool, \
-        \pool_slots, priority_weight, operator, queued_dttm, queued_by_job_id, pid, updated_at, external_executor_id \
-        \from task_instance where dag_id = $1 and run_id = $2 and task_id = $3"
+  let s = sqlTaskInstance <> "where dag_id = $1 and run_id = $2 and task_id = $3"
       e = contrazip3 eParamText eParamText eParamText
       d = D.rowMaybe $ dRowTaskInstance
    in S.Statement s e d True
@@ -140,13 +137,18 @@ sGetTaskInstance =
 -- statement: dag_id, run_id, [state]
 sGetTaskInstancesByStates :: S.Statement (Text, Text, [Text]) (Vec.Vector TaskInstance)
 sGetTaskInstancesByStates =
-  let s =
-        "select dag_id, run_id, task_id, start_date, end_date, duration, state, try_number, max_tries, hostname, unixname, job_id, pool, \
-        \pool_slots, priority_weight, operator, queued_dttm, queued_by_job_id, pid, updated_at, external_executor_id \
-        \from task_instance where dag_id = $1 and run_id = $2 and state = any ($3)"
+  let s = sqlTaskInstance <> "where dag_id = $1 and run_id = $2 and state = any ($3)"
       e = contrazip3 eParamText eParamText (E.param $ E.nonNullable $ E.foldableArray $ E.nonNullable E.text)
       d = D.rowVector $ dRowTaskInstance
    in S.Statement s e d True
+
+----------------------------------------------------------------------------------------------------
+
+sqlTaskInstance :: ByteString
+sqlTaskInstance =
+  "select dag_id, run_id, task_id, start_date, end_date, duration, state, try_number, max_tries, hostname, unixname, \
+  \job_id, pool, pool_slots, priority_weight, operator, queued_dttm, queued_by_job_id, pid, updated_at, external_executor_id \
+  \from task_instance "
 
 ----------------------------------------------------------------------------------------------------
 -- Transactions
