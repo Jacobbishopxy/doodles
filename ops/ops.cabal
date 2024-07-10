@@ -138,7 +138,6 @@ executable test-hasql-demo3
     , bytestring
     , contravariant-extras
     , hasql
-    , hasql-th
     , hasql-transaction
     , scientific
     , text

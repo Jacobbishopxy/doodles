@@ -15,7 +15,11 @@ main :: IO ()
 main = do
   Right connection <- C.acquire cfg
 
-  res2 <- R.run (getTaskInstancesByStates "cronjob_trade" "20240708" [TsFailed]) connection
+  -- res1 <- R.run (getTaskInstancesByStates "cronjob_trade" "20240708" [TsFailed]) connection
+  -- print res1
+
+  -- res2 <- R.run (getFailedCeleryTask (mkFromTo "%Y%m%d" ("20240709", "20240710"))) connection
+  res2 <- R.run (getFailedCeleryTask (mkFrom "%Y%m%d" "20240710")) connection
   print res2
 
   putStrLn "done"

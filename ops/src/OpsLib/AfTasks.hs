@@ -8,12 +8,17 @@
 
 module OpsLib.AfTasks
   ( TaskInstance (..),
-    XCom (..),
     TaskState (..),
+    CeleryTaskmeta (..),
+    ParamTime (..),
+    ReqTime (..),
+    mkFromTo,
+    mkFrom,
     getTaskInstance,
     getTaskInstance',
     getTaskInstancesByStates,
     getTaskInstancesByStates',
+    getFailedCeleryTask,
   )
 where
 
@@ -22,7 +27,7 @@ import Contravariant.Extras.Contrazip (contrazip3)
 import Data.ByteString (ByteString)
 import Data.Int (Int32)
 import Data.Text (Text)
-import Data.Time.Clock (UTCTime)
+import Data.Time (LocalTime, UTCTime, defaultTimeLocale, parseTimeM)
 import qualified Data.Vector as Vec
 import qualified Hasql.Decoders as D
 import qualified Hasql.Encoders as E
@@ -60,17 +65,7 @@ data TaskInstance = TaskInstance
   }
   deriving (Show)
 
-data XCom = XCom
-  { x_dag_run_id :: Int32,
-    x_task_id :: Text,
-    x_key :: Text,
-    x_dag_id :: Text,
-    x_run_id :: Text,
-    x_value :: Maybe ByteString,
-    x_timestamp :: UTCTime
-  }
-
---
+-- Task state
 data TaskState
   = TsDeferred
   | TsFailed
@@ -87,6 +82,34 @@ data TaskState
   | TsUpstreamFailed
   | TsNone
   deriving (Show)
+
+data CeleryTaskmeta = CeleryTaskmeta
+  { c_task_id :: Maybe Text,
+    c_date_done :: Maybe LocalTime,
+    c_ip :: Maybe Text
+  }
+  deriving (Show)
+
+data ParamTime
+  = FromTo String String
+  | From String
+
+data ReqTime = ReqTime
+  { paramTime :: ParamTime,
+    timeFmt :: String
+  }
+
+data ParamTime' a
+  = FromTo' a a
+  | From' a
+
+----------------------------------------------------------------------------------------------------
+
+mkFromTo :: String -> (String, String) -> ReqTime
+mkFromTo fmt (s, e) = ReqTime (FromTo s e) fmt
+
+mkFrom :: String -> String -> ReqTime
+mkFrom fmt s = ReqTime (From s) fmt
 
 ----------------------------------------------------------------------------------------------------
 -- Export Fn
@@ -111,6 +134,16 @@ getTaskInstancesByStates dagId curDate states =
 getTaskInstancesByStates' :: Text -> Text -> [TaskState] -> R.Session (Vec.Vector TaskInstance)
 getTaskInstancesByStates' dagId runId states =
   R.statement (dagId, runId, taskStateToStr <$> states) sGetTaskInstancesByStates
+
+-- from_date, to_date -> Vec<CeleryTaskmeta>
+-- from_date -> Vec<CeleryTaskmeta>
+getFailedCeleryTask :: ReqTime -> R.Session (Vec.Vector CeleryTaskmeta)
+getFailedCeleryTask timeParam = do
+  let tp = reqTimeToParamT timeParam :: Maybe (ParamTime' LocalTime)
+  case tp of
+    Just (FromTo' s e) -> R.statement (s, e) sGetFailedCeleryTaskBtw
+    Just (From' s) -> R.statement s sGetFailedCeleryTaskFrom
+    Nothing -> pure Vec.empty
 
 ----------------------------------------------------------------------------------------------------
 -- Statements
@@ -142,6 +175,25 @@ sGetTaskInstancesByStates =
       d = D.rowVector $ dRowTaskInstance
    in S.Statement s e d True
 
+-- statement: from_date, to_date
+sGetFailedCeleryTaskBtw :: S.Statement (LocalTime, LocalTime) (Vec.Vector CeleryTaskmeta)
+sGetFailedCeleryTaskBtw =
+  let s =
+        "select task_id, date_done, (regexp_matches(traceback, '([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})'))[1] as ip_address \
+        \from celery_taskmeta \
+        \where status = 'FAILURE' and date_done between $1 and $2"
+      e = contrazip2 eParamTimeStamp eParamTimeStamp
+      d = D.rowVector $ dRowCeleryTaskmeta
+   in S.Statement s e d True
+
+-- statement: from_date
+sGetFailedCeleryTaskFrom :: S.Statement LocalTime (Vec.Vector CeleryTaskmeta)
+sGetFailedCeleryTaskFrom =
+  let s = sqlFailedCeleryTask <> "and date_done >= $1"
+      e = eParamTimeStamp
+      d = D.rowVector $ dRowCeleryTaskmeta
+   in S.Statement s e d True
+
 ----------------------------------------------------------------------------------------------------
 
 sqlTaskInstance :: ByteString
@@ -149,6 +201,12 @@ sqlTaskInstance =
   "select dag_id, run_id, task_id, start_date, end_date, duration, state, try_number, max_tries, hostname, unixname, \
   \job_id, pool, pool_slots, priority_weight, operator, queued_dttm, queued_by_job_id, pid, updated_at, external_executor_id \
   \from task_instance "
+
+sqlFailedCeleryTask :: ByteString
+sqlFailedCeleryTask =
+  "select task_id, date_done, (regexp_matches(traceback, '([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})'))[1] as ip_address \
+  \from celery_taskmeta \
+  \where status = 'FAILURE' "
 
 ----------------------------------------------------------------------------------------------------
 -- Transactions
@@ -174,27 +232,13 @@ tGetTaskInstancesByStates dagId curDate states = do
 -- Helper
 ----------------------------------------------------------------------------------------------------
 
-taskStateToStr :: TaskState -> Text
-taskStateToStr s =
-  case s of
-    TsDeferred -> "deferred"
-    TsFailed -> "failed"
-    TsQueued -> "queued"
-    TsRemoved -> "removed"
-    TsRestarting -> "restarting"
-    TsRunning -> "running"
-    TsScheduled -> "scheduled"
-    TsShutdown -> "shutdown"
-    TsSkipped -> "skipped"
-    TsSuccess -> "success"
-    TsUpForReschedule -> "up_for_reschedule"
-    TsUpForRetry -> "up_for_retry"
-    TsUpstreamFailed -> "upstream_failed"
-    TsNone -> "null"
-
 -- encode param text
 eParamText :: E.Params Text
 eParamText = E.param $ E.nonNullable E.text
+
+-- encode param timestamp
+eParamTimeStamp :: E.Params LocalTime
+eParamTimeStamp = E.param $ E.nonNullable E.timestamp
 
 -- work for XCom value
 wrappedTextEncoder :: E.Params Text
@@ -245,3 +289,51 @@ decodeTaskState = D.enum $ \case
   "up_for_retry" -> Just TsUpForRetry
   "upstream_failed" -> Just TsUpstreamFailed
   _ -> Nothing
+
+-- decode CeleryTaskmeta
+dRowCeleryTaskmeta :: D.Row CeleryTaskmeta
+dRowCeleryTaskmeta =
+  CeleryTaskmeta
+    <$> D.column (D.nullable D.text)
+    <*> D.column (D.nullable D.timestamp)
+    <*> D.column (D.nullable D.text)
+
+----------------------------------------------------------------------------------------------------
+
+taskStateToStr :: TaskState -> Text
+taskStateToStr s =
+  case s of
+    TsDeferred -> "deferred"
+    TsFailed -> "failed"
+    TsQueued -> "queued"
+    TsRemoved -> "removed"
+    TsRestarting -> "restarting"
+    TsRunning -> "running"
+    TsScheduled -> "scheduled"
+    TsShutdown -> "shutdown"
+    TsSkipped -> "skipped"
+    TsSuccess -> "success"
+    TsUpForReschedule -> "up_for_reschedule"
+    TsUpForRetry -> "up_for_retry"
+    TsUpstreamFailed -> "upstream_failed"
+    TsNone -> "null"
+
+----------------------------------------------------------------------------------------------------
+
+class ToParamT a where
+  -- fmt, time_string -> Maybe a
+  toParamT :: String -> String -> Maybe a
+
+instance ToParamT LocalTime where
+  toParamT = parseTimeM True defaultTimeLocale
+
+instance ToParamT UTCTime where
+  toParamT = parseTimeM True defaultTimeLocale
+
+reqTimeToParamT :: (ToParamT a) => ReqTime -> Maybe (ParamTime' a)
+reqTimeToParamT t =
+  case paramTime t of
+    FromTo s e -> FromTo' <$> toParamT f s <*> toParamT f e
+    From s -> From' <$> toParamT f s
+  where
+    f = timeFmt t
