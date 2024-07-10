@@ -19,12 +19,16 @@ main = do
   -- print res1
 
   -- res2 <- R.run (getFailedCeleryTask (mkFromTo "%Y%m%d" ("20240709", "20240710"))) connection
-  res2 <- R.run (getFailedCeleryTask (mkFrom "%Y%m%d" "20240710")) connection
-  print res2
+  -- res2 <- R.run (getFailedCeleryTask (mkFrom "%Y%m%d" "20240710")) connection
+  -- print res2
+
+  res3 <- R.run (getLastNTradeDaysRunId "cronjob_monitor" 10) connection
+  print res3
 
   putStrLn "done"
 
 ----------------------------------------------------------------------------------------------------
 
 cfg :: C.Settings
-cfg = C.settings "localhost" 5432 "postgres" "1" "hasql"
+-- cfg = C.settings "localhost" 5432 "postgres" "1" "hasql"
+cfg = C.settings "10.144.66.43" 5433 "postgres" "1" "airflow"

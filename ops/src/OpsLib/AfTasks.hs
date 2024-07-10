@@ -19,6 +19,7 @@ module OpsLib.AfTasks
     getTaskInstancesByStates,
     getTaskInstancesByStates',
     getFailedCeleryTask,
+    getLastNTradeDaysRunId,
   )
 where
 
@@ -145,6 +146,11 @@ getFailedCeleryTask timeParam = do
     Just (From' s) -> R.statement s sGetFailedCeleryTaskFrom
     Nothing -> pure Vec.empty
 
+-- dag_id, pre_n_tradedays -> Vec<(run_id, cur_date)>
+getLastNTradeDaysRunId :: Text -> Int -> R.Session (Vec.Vector (Text, Text))
+getLastNTradeDaysRunId dagId prevNTradeDays =
+  R.statement (dagId, fromIntegral prevNTradeDays) sGetLastNTradeDaysRunId
+
 ----------------------------------------------------------------------------------------------------
 -- Statements
 ----------------------------------------------------------------------------------------------------
@@ -154,8 +160,9 @@ sGetRunIdFromXCom :: S.Statement (Text, Text) (Maybe Text)
 sGetRunIdFromXCom =
   let s =
         "select run_id from xcom \
-        \where dag_id = $1 and task_id = 'branch_processor' and key = 'cur_date' and convert_from(value, 'UTF8') = $2"
-      e = contrazip2 eParamText wrappedTextEncoder
+        \where dag_id = $1 and task_id = 'branch_processor' and key = 'cur_date' \
+        \and convert_from(value, 'UTF8') = '\"' || $2 || '\"'"
+      e = contrazip2 eParamText eParamText
       d = D.rowMaybe $ D.column $ D.nonNullable D.text
    in S.Statement s e d True
 
@@ -171,7 +178,7 @@ sGetTaskInstance =
 sGetTaskInstancesByStates :: S.Statement (Text, Text, [Text]) (Vec.Vector TaskInstance)
 sGetTaskInstancesByStates =
   let s = sqlTaskInstance <> "where dag_id = $1 and run_id = $2 and state = any ($3)"
-      e = contrazip3 eParamText eParamText (E.param $ E.nonNullable $ E.foldableArray $ E.nonNullable E.text)
+      e = contrazip3 eParamText eParamText eParamListText
       d = D.rowVector $ dRowTaskInstance
    in S.Statement s e d True
 
@@ -179,7 +186,8 @@ sGetTaskInstancesByStates =
 sGetFailedCeleryTaskBtw :: S.Statement (LocalTime, LocalTime) (Vec.Vector CeleryTaskmeta)
 sGetFailedCeleryTaskBtw =
   let s =
-        "select task_id, date_done, (regexp_matches(traceback, '([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})'))[1] as ip_address \
+        "select task_id, date_done, \
+        \(regexp_matches(traceback, '([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})'))[1] as ip_address \
         \from celery_taskmeta \
         \where status = 'FAILURE' and date_done between $1 and $2"
       e = contrazip2 eParamTimeStamp eParamTimeStamp
@@ -194,19 +202,66 @@ sGetFailedCeleryTaskFrom =
       d = D.rowVector $ dRowCeleryTaskmeta
    in S.Statement s e d True
 
+-- statement: dag_id, n
+sGetLastNTradeDaysRunId :: S.Statement (Text, Int32) (Vec.Vector (Text, Text))
+sGetLastNTradeDaysRunId =
+  let s = sqlRunId
+      e = contrazip2 eParamText eParamI32
+      d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
+   in S.Statement s e d True
+
 ----------------------------------------------------------------------------------------------------
 
 sqlTaskInstance :: ByteString
 sqlTaskInstance =
-  "select dag_id, run_id, task_id, start_date, end_date, duration, state, try_number, max_tries, hostname, unixname, \
-  \job_id, pool, pool_slots, priority_weight, operator, queued_dttm, queued_by_job_id, pid, updated_at, external_executor_id \
-  \from task_instance "
+  "select dag_id, run_id, task_id, start_date, end_date, duration, state, try_number, max_tries, \
+  \hostname, unixname, job_id, pool, pool_slots, priority_weight, operator, queued_dttm, \
+  \queued_by_job_id, pid, updated_at, external_executor_id from task_instance "
 
 sqlFailedCeleryTask :: ByteString
 sqlFailedCeleryTask =
-  "select task_id, date_done, (regexp_matches(traceback, '([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})'))[1] as ip_address \
+  "select task_id, date_done, \
+  \(regexp_matches(traceback, '([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})'))[1] as ip_address \
   \from celery_taskmeta \
   \where status = 'FAILURE' "
+
+sqlRunId :: ByteString
+sqlRunId =
+  "with previous_days as ( \
+  \select generate_series( \
+  \   current_date - interval '1 day' * ($2 - 1), \
+  \   current_date, \
+  \   interval '1 day' \
+  \   )::date as date \
+  \), \
+  \run_ids as ( \
+  \select run_id from xcom \
+  \where \
+  \   dag_id = $1 \
+  \   and task_id = 'branch_processor' \
+  \   and key = 'cur_date' \
+  \   and convert_from(value, 'UTF8') = any ( \
+  \     select '\"' || to_char(date, 'YYYYMMDD') || '\"' \
+  \     from previous_days \
+  \   ) \
+  \), \
+  \filtered_dates as ( \
+  \select run_id from xcom \
+  \where \
+  \   dag_id = $1 \
+  \   and task_id = 'branch_processor' \
+  \   and key in ('cur_date', 'cur_trade_date') \
+  \   and run_id = any (select run_id from run_ids) \
+  \   group by run_id \
+  \   having count(distinct value) = 1 \
+  \) \
+  \select run_id, value \
+  \   from xcom \
+  \   where \
+  \   dag_id = $1 \
+  \   and task_id = 'branch_processor' \
+  \   and key = 'cur_date' \
+  \   and run_id in (select run_id from filtered_dates)"
 
 ----------------------------------------------------------------------------------------------------
 -- Transactions
@@ -236,15 +291,22 @@ tGetTaskInstancesByStates dagId curDate states = do
 eParamText :: E.Params Text
 eParamText = E.param $ E.nonNullable E.text
 
+-- encode param [text]
+eParamListText :: E.Params [Text]
+eParamListText = E.param $ E.nonNullable $ E.foldableArray $ E.nonNullable E.text
+
+eParamI32 :: E.Params Int32
+eParamI32 = E.param $ E.nonNullable $ E.int4
+
 -- encode param timestamp
 eParamTimeStamp :: E.Params LocalTime
 eParamTimeStamp = E.param $ E.nonNullable E.timestamp
 
 -- work for XCom value
-wrappedTextEncoder :: E.Params Text
-wrappedTextEncoder = E.param $ E.nonNullable $ E.enum $ encodeWrappedText
-  where
-    encodeWrappedText text = "\"" <> text <> "\""
+-- wrappedTextEncoder :: E.Params Text
+-- wrappedTextEncoder = E.param $ E.nonNullable $ E.enum $ encodeWrappedText
+--   where
+--     encodeWrappedText text = "\"" <> text <> "\""
 
 -- decode TaskInstance
 dRowTaskInstance :: D.Row TaskInstance
