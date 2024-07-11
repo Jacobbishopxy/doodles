@@ -30,10 +30,10 @@ main = do
   let cfg =
         C.settings
           (pack $ fromMaybe "loaclhost" afHost)
-          (fromMaybe 5433 $ afPort >>= readMaybe)
+          (fromMaybe 5432 $ afPort >>= readMaybe)
           (pack $ fromMaybe "postgres" afUser)
           (pack $ fromMaybe "1" afPass)
-          (pack $ fromMaybe "airflow" afDb)
+          (pack $ fromMaybe "postgres" afDb)
 
   Right connection <- C.acquire cfg
 
@@ -44,7 +44,7 @@ main = do
   -- res2 <- R.run (getFailedCeleryTask (mkFrom "%Y%m%d" "20240710")) connection
   -- print res2
 
-  res3 <- R.run (getLastNTradeDaysRunId "cronjob_monitor" 10) connection
+  res3 <- R.run (getLastNTradeDaysRunId "cronjob_monitor" 30) connection
   print res3
 
   putStrLn "done"

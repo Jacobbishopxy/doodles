@@ -94,6 +94,7 @@ data CeleryTaskmeta = CeleryTaskmeta
 data ParamTime
   = FromTo String String
   | From String
+  | LastN Int
 
 data ReqTime = ReqTime
   { paramTime :: ParamTime,
@@ -103,6 +104,12 @@ data ReqTime = ReqTime
 data ParamTime' a
   = FromTo' a a
   | From' a
+
+data ReqTaskInstance = ReqTaskInstance
+  { r_dag_id :: String,
+    r_time :: ParamTime,
+    r_state :: Maybe [String]
+  }
 
 ----------------------------------------------------------------------------------------------------
 
@@ -144,6 +151,7 @@ getFailedCeleryTask timeParam = do
   case tp of
     Just (FromTo' s e) -> R.statement (s, e) sGetFailedCeleryTaskBtw
     Just (From' s) -> R.statement s sGetFailedCeleryTaskFrom
+    -- Just (LastN' n) -> undefined
     Nothing -> pure Vec.empty
 
 -- dag_id, pre_n_tradedays -> Vec<(run_id, cur_date)>
@@ -182,6 +190,8 @@ sGetTaskInstancesByStates =
       d = D.rowVector $ dRowTaskInstance
    in S.Statement s e d True
 
+-- sGetTaskInstance :: S.Statement
+
 -- statement: from_date, to_date
 sGetFailedCeleryTaskBtw :: S.Statement (LocalTime, LocalTime) (Vec.Vector CeleryTaskmeta)
 sGetFailedCeleryTaskBtw =
@@ -205,7 +215,7 @@ sGetFailedCeleryTaskFrom =
 -- statement: dag_id, n
 sGetLastNTradeDaysRunId :: S.Statement (Text, Int32) (Vec.Vector (Text, Text))
 sGetLastNTradeDaysRunId =
-  let s = sqlRunId
+  let s = sqlGetLastNTradeDaysRunId
       e = contrazip2 eParamText eParamI32
       d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
    in S.Statement s e d True
@@ -225,8 +235,8 @@ sqlFailedCeleryTask =
   \from celery_taskmeta \
   \where status = 'FAILURE' "
 
-sqlRunId :: ByteString
-sqlRunId =
+sqlGetLastNTradeDaysRunId :: ByteString
+sqlGetLastNTradeDaysRunId =
   "with previous_days as ( \
   \select generate_series( \
   \   current_date - interval '1 day' * ($2 - 1), \
@@ -244,16 +254,6 @@ sqlRunId =
   \     select '\"' || to_char(date, 'YYYYMMDD') || '\"' \
   \     from previous_days \
   \   ) \
-  \), \
-  \filtered_dates as ( \
-  \select run_id from xcom \
-  \where \
-  \   dag_id = $1 \
-  \   and task_id = 'branch_processor' \
-  \   and key in ('cur_date', 'cur_trade_date') \
-  \   and run_id = any (select run_id from run_ids) \
-  \   group by run_id \
-  \   having count(distinct value) = 1 \
   \) \
   \select run_id, value \
   \   from xcom \
@@ -261,7 +261,7 @@ sqlRunId =
   \   dag_id = $1 \
   \   and task_id = 'branch_processor' \
   \   and key = 'cur_date' \
-  \   and run_id in (select run_id from filtered_dates)"
+  \   and run_id in (select run_id from run_ids)"
 
 ----------------------------------------------------------------------------------------------------
 -- Transactions
@@ -397,5 +397,6 @@ reqTimeToParamT t =
   case paramTime t of
     FromTo s e -> FromTo' <$> toParamT f s <*> toParamT f e
     From s -> From' <$> toParamT f s
+    _ -> undefined
   where
     f = timeFmt t
