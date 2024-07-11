@@ -26,3 +26,4 @@ cabal.project.local~
 docs/guide.rst
 tmp
 data
+ops/test/AfTasks.env

@@ -7,12 +7,34 @@
 
 module Main where
 
+import Configuration.Dotenv (Config (configPath), defaultConfig, loadFile)
+import Data.ByteString.Char8 (pack)
+import Data.Maybe (fromMaybe)
 import qualified Hasql.Connection as C
 import qualified Hasql.Session as R
 import OpsLib.AfTasks
+import System.Environment (lookupEnv)
+import Text.Read (readMaybe)
 
 main :: IO ()
 main = do
+  -- load dotenv file
+  loadFile defaultConfig {configPath = ["./ops/test/AfTasks.env"]}
+  -- load vars
+  afHost <- lookupEnv "AF_HOST"
+  afPort <- lookupEnv "AF_PORT"
+  afUser <- lookupEnv "AF_USER"
+  afPass <- lookupEnv "AF_PASS"
+  afDb <- lookupEnv "AF_DB"
+
+  let cfg =
+        C.settings
+          (pack $ fromMaybe "loaclhost" afHost)
+          (fromMaybe 5433 $ afPort >>= readMaybe)
+          (pack $ fromMaybe "postgres" afUser)
+          (pack $ fromMaybe "1" afPass)
+          (pack $ fromMaybe "airflow" afDb)
+
   Right connection <- C.acquire cfg
 
   -- res1 <- R.run (getTaskInstancesByStates "cronjob_trade" "20240708" [TsFailed]) connection
@@ -26,9 +48,3 @@ main = do
   print res3
 
   putStrLn "done"
-
-----------------------------------------------------------------------------------------------------
-
-cfg :: C.Settings
--- cfg = C.settings "localhost" 5432 "postgres" "1" "hasql"
-cfg = C.settings "10.144.66.43" 5433 "postgres" "1" "airflow"

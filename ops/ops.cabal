@@ -150,5 +150,7 @@ executable test-af-tasks
   main-is:          AfTasks.hs
   build-depends:
     , base
+    , bytestring
+    , dotenv
     , hasql
     , ops
