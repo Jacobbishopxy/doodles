@@ -91,9 +91,10 @@ data CeleryTaskmeta = CeleryTaskmeta
   }
   deriving (Show)
 
+type ParamTimeFmt = String
+
 data ReqTime
-  = -- ParamTimeRange time_format
-    TimeRange ParamTimeRange String
+  = TimeRange ParamTimeRange ParamTimeFmt
   | LastNDays Int
 
 data ReqTaskInstance = ReqTaskInstance String ReqTime (Maybe [String]) (Maybe [TaskState])
@@ -237,7 +238,7 @@ sGetFromTradeDayRunIds :: S.Statement (Text, UTCTime) (Vec.Vector (Text, Text))
 sGetFromTradeDayRunIds =
   let s = sqlGetFromTradeDayRunIds
       e = contrazip2 eParamText eParamTimeStamptz
-      d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
+      d = D.rowVector dRowRunIds
    in S.Statement s e d True
 
 -- statement: dag_id, from_date, to_date
@@ -245,7 +246,7 @@ sGetFromToTradeDayRunIds :: S.Statement (Text, UTCTime, UTCTime) (Vec.Vector (Te
 sGetFromToTradeDayRunIds =
   let s = sqlGetFromToTradeDayRunIds
       e = contrazip3 eParamText eParamTimeStamptz eParamTimeStamptz
-      d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
+      d = D.rowVector dRowRunIds
    in S.Statement s e d True
 
 -- statement: dag_id, date
@@ -253,7 +254,7 @@ sGetIsTradeDayRunIds :: S.Statement (Text, UTCTime) (Vec.Vector (Text, Text))
 sGetIsTradeDayRunIds =
   let s = sqlGetIsTradeDayRunIds
       e = contrazip2 eParamText eParamTimeStamptz
-      d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
+      d = D.rowVector dRowRunIds
    in S.Statement s e d True
 
 -- statement: dag_id, n
@@ -261,7 +262,7 @@ sGetLastNTradeDayRunIds :: S.Statement (Text, Int32) (Vec.Vector (Text, Text))
 sGetLastNTradeDayRunIds =
   let s = sqlGetLastNTradeDaysRunIds
       e = contrazip2 eParamText eParamI32
-      d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
+      d = D.rowVector dRowRunIds
    in S.Statement s e d True
 
 -- statement: ReqDagTime
@@ -474,6 +475,10 @@ dRowCeleryTaskmeta =
     <$> D.column (D.nullable D.text)
     <*> D.column (D.nullable D.timestamp)
     <*> D.column (D.nullable D.text)
+
+-- decode TaskInstance rows
+dRowRunIds :: D.Row (Text, Text)
+dRowRunIds = (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
 
 ----------------------------------------------------------------------------------------------------
 
