@@ -37,13 +37,18 @@ main = do
 
   Right connection <- C.acquire cfg
 
-  -- res1 <- R.run (getTaskInstancesByStates "cronjob_trade" "20240708" [TsFailed]) connection
-  -- print res1
+  -- get task task instances
+  let reqT = mkReqLastN 5
+      reqTi = mkReqTaskInstance "cronjob_monitor" reqT Nothing (Just [TsFailed])
+  res1 <- R.run (getTaskInstance reqTi) connection
+  print res1
 
-  -- res2 <- R.run (getFailedCeleryTask (mkFromTo "%Y%m%d" ("20240709", "20240710"))) connection
-  -- res2 <- R.run (getFailedCeleryTask (mkFrom "%Y%m%d" "20240710")) connection
-  -- print res2
+  -- get failed celery tasks
+  let reqT' = mkReqLastN 2
+  res2 <- R.run (getFailedCeleryTask reqT') connection
+  print res2
 
+  -- get last n trade days run ids
   res3 <- R.run (getLastNTradeDaysRunId "cronjob_monitor" 30) connection
   print res3
 

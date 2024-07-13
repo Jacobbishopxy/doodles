@@ -10,14 +10,14 @@ module OpsLib.AfTasks
   ( TaskInstance (..),
     TaskState (..),
     CeleryTaskmeta (..),
-    ReqDagTime (..),
-    ReqTaskInstance (..),
-    mkFromTo,
-    mkFrom,
+    ReqTime,
+    ReqTaskInstance,
+    mkReqFromTo,
+    mkReqFrom,
+    mkReqIs,
+    mkReqLastN,
+    mkReqTaskInstance,
     getTaskInstance,
-    -- getTaskInstance',
-    -- getTaskInstancesByStates,
-    -- getTaskInstancesByStates',
     getFailedCeleryTask,
     getLastNTradeDaysRunId,
   )
@@ -26,8 +26,9 @@ where
 import Contravariant.Extras (contrazip2, contrazip3, contrazip4)
 import Data.ByteString (ByteString)
 import Data.Int (Int32)
-import Data.Text (Text)
-import Data.Time (LocalTime, UTCTime (UTCTime), defaultTimeLocale, parseTimeM)
+import Data.Maybe (isNothing)
+import Data.Text (Text, pack)
+import Data.Time (LocalTime, UTCTime, defaultTimeLocale, parseTimeM)
 import qualified Data.Vector as Vec
 import qualified Hasql.Decoders as D
 import qualified Hasql.Encoders as E
@@ -90,139 +91,91 @@ data CeleryTaskmeta = CeleryTaskmeta
   }
   deriving (Show)
 
-data ReqDagTime = ReqDagTime
-  { r_dag_id :: String,
-    r_time :: ReqTime
-  }
+data ReqTime
+  = -- ParamTimeRange time_format
+    TimeRange ParamTimeRange String
+  | LastNDays Int
 
-data ReqTaskInstance = ReqTaskInstance
-  { r_dt :: ReqDagTime,
-    r_state :: Maybe [TaskState]
-  }
+data ReqTaskInstance = ReqTaskInstance String ReqTime (Maybe [String]) (Maybe [TaskState])
+
+mkReqFromTo :: String -> (String, String) -> ReqTime
+mkReqFromTo fmt (s, e) = TimeRange (FromTo s e) fmt
+
+mkReqFrom :: String -> String -> ReqTime
+mkReqFrom fmt s = TimeRange (From s) fmt
+
+mkReqIs :: String -> String -> ReqTime
+mkReqIs fmt s = TimeRange (Is s) fmt
+
+mkReqLastN :: Int -> ReqTime
+mkReqLastN n = LastNDays n
+
+mkReqTaskInstance :: String -> ReqTime -> Maybe [String] -> Maybe [TaskState] -> ReqTaskInstance
+mkReqTaskInstance dagId reqTime taskIds states = ReqTaskInstance dagId reqTime taskIds states
 
 ----------------------------------------------------------------------------------------------------
 -- private DATs
 
-data ReqTime
-  = TimeRange
-      { paramTime :: ParamTimeRange,
-        timeFmt :: String
-      }
-  | LastNDays Int
-
 data ParamTimeRange
   = FromTo String String
   | From String
+  | Is String
 
-data ParamTime' a
+data ParamTimeRange' a
   = FromTo' a a
   | From' a
-
-mkFromTo :: String -> (String, String) -> ReqTime
-mkFromTo fmt (s, e) = TimeRange (FromTo s e) fmt
-
-mkFrom :: String -> String -> ReqTime
-mkFrom fmt s = TimeRange (From s) fmt
+  | Is' a
 
 ----------------------------------------------------------------------------------------------------
 -- Export Fn
 ----------------------------------------------------------------------------------------------------
 
--- dag_id, cur_date, task_id -> TaskInstance
-getTaskInstance :: Text -> Text -> Text -> R.Session (Maybe TaskInstance)
-getTaskInstance dagId curDate taskId =
-  TS.transaction TS.ReadCommitted TS.Read (tGetTaskInstance dagId curDate taskId)
+-- ReqTaskInstance -> Vec<TaskInstance>
+getTaskInstance :: ReqTaskInstance -> R.Session (Vec.Vector TaskInstance)
+getTaskInstance =
+  TS.transaction TS.ReadCommitted TS.Read . tGetTaskInstances
 
--- dag_id, cur_date, states -> Vec<TaskInstance>
--- getTaskInstancesByStates :: Text -> Text -> [TaskState] -> R.Session (Vec.Vector TaskInstance)
--- getTaskInstancesByStates dagId curDate states =
---   TS.transaction TS.ReadCommitted TS.Read (tGetTaskInstancesByStates dagId curDate states)
-
-getTaskInstance' :: ReqTaskInstance -> R.Session (Vec.Vector TaskInstance)
-getTaskInstance' (ReqTaskInstance (ReqDagTime d t) st) =
-  case t of
-    tp@(TimeRange _ _) ->
-      case reqTimeToParamT tp :: Maybe (ParamTime' UTCTime) of
-        Just (FromTo' s e) -> undefined
-        Just (From' s) -> undefined
-        Nothing -> pure Vec.empty
-    LastNDays n -> undefined
-
--- from_date, to_date -> Vec<CeleryTaskmeta>
--- from_date -> Vec<CeleryTaskmeta>
+-- ReqTime -> Vec<CeleryTaskmeta>
 getFailedCeleryTask :: ReqTime -> R.Session (Vec.Vector CeleryTaskmeta)
-getFailedCeleryTask timeParam = do
-  let tp = reqTimeToParamT timeParam :: Maybe (ParamTime' LocalTime)
-  case tp of
-    Just (FromTo' s e) -> R.statement (s, e) sGetFailedCeleryTaskBtw
-    Just (From' s) -> R.statement s sGetFailedCeleryTaskFrom
-    Nothing -> pure Vec.empty
+getFailedCeleryTask t = do
+  case t of
+    LastNDays n -> R.statement (fromIntegral n) sGetFailedCeleryTaskPrevN
+    tp -> case reqTimeToParamT tp :: Maybe (ParamTimeRange' LocalTime) of
+      Just (FromTo' s e) -> R.statement (s, e) sGetFailedCeleryTaskBtw
+      Just (From' s) -> R.statement s sGetFailedCeleryTaskFrom
+      Just (Is' d) -> R.statement d sGetFailedCeleryTaskIn
+      Nothing -> pure Vec.empty
 
 -- dag_id, pre_n_tradedays -> Vec<(run_id, cur_date)>
 getLastNTradeDaysRunId :: Text -> Int -> R.Session (Vec.Vector (Text, Text))
 getLastNTradeDaysRunId dagId prevNTradeDays =
-  R.statement (dagId, fromIntegral prevNTradeDays) sGetLastNTradeDaysRunId
-
-----------------------------------------------------------------------------------------------------
--- for debugging:
-
--- dag_id, run_id, task_id -> TaskInstance
--- getTaskInstance' :: Text -> Text -> Text -> R.Session (Maybe TaskInstance)
--- getTaskInstance' dagId runId taskId =
---   R.statement (dagId, runId, taskId) sGetTaskInstance
-
--- dag_id, run_id, states -> Vec<TaskInstance>
--- getTaskInstancesByStates' :: Text -> Text -> [TaskState] -> R.Session (Vec.Vector TaskInstance)
--- getTaskInstancesByStates' dagId runId states =
---   R.statement (dagId, runId, taskStateToStr <$> states) sGetTaskInstancesByStates
+  R.statement (dagId, fromIntegral prevNTradeDays) sGetLastNTradeDayRunIds
 
 ----------------------------------------------------------------------------------------------------
 -- Statements
 ----------------------------------------------------------------------------------------------------
 
+----------------------------------------------------------------------------------------------------
+-- XCom
+
 -- statement: dag_id, task_id -> Maybe<run_id>
-sGetRunIdFromXCom :: S.Statement (Text, Text) (Maybe Text)
-sGetRunIdFromXCom =
-  let s =
-        "select run_id from xcom \
-        \where dag_id = $1 and task_id = 'branch_processor' and key = 'cur_date' \
-        \and convert_from(value, 'UTF8') = '\"' || $2 || '\"'"
-      e = contrazip2 eParamText eParamText
-      d = D.rowMaybe $ D.column $ D.nonNullable D.text
-   in S.Statement s e d True
+-- sGetRunIdFromXCom :: S.Statement (Text, Text) (Maybe Text)
+-- sGetRunIdFromXCom =
+--   let s =
+--         "select run_id from xcom \
+--         \where dag_id = $1 and task_id = 'branch_processor' and key = 'cur_date' \
+--         \and convert_from(value, 'UTF8') = '\"' || $2 || '\"'"
+--       e = contrazip2 eParamText eParamText
+--       d = D.rowMaybe $ D.column $ D.nonNullable D.text
+--    in S.Statement s e d True
 
--- statement: dag_id, run_id, task_id -> Maybe<TaskInstance>
-sGetTaskInstance :: S.Statement (Text, Text, Text) (Maybe TaskInstance)
-sGetTaskInstance =
-  let s = sqlTaskInstance <> "where dag_id = $1 and run_id = $2 and task_id = $3"
-      e = contrazip3 eParamText eParamText eParamText
-      d = D.rowMaybe $ dRowTaskInstance
-   in S.Statement s e d True
-
--- statement: dag_id, [run_id], [task_id] -> Vec<TaskInstance>
-sGetTaskInstances :: S.Statement (Text, [Text], [Text]) (Vec.Vector TaskInstance)
-sGetTaskInstances =
-  let s = sqlTaskInstance <> "where dag_id = $1 and run_id = any ($2) and task_id = any ($3)"
-      e = contrazip3 eParamText eParamListText eParamListText
-      d = D.rowVector $ dRowTaskInstance
-   in S.Statement s e d True
-
--- statement: dag_id, [run_id], [task_id], [state] -> Vec<TaskInstance>
-sGetTaskInstances' :: S.Statement (Text, [Text], [Text], [Text]) (Vec.Vector TaskInstance)
-sGetTaskInstances' =
-  let s = sqlTaskInstance <> "where dag_id = $1 and run_id = any ($2) and task_id = any ($3) and state = any ($4)"
-      e = contrazip4 eParamText eParamListText eParamListText eParamListText
-      d = D.rowVector $ dRowTaskInstance
-   in S.Statement s e d True
+----------------------------------------------------------------------------------------------------
+-- FailedCeleryTask
 
 -- statement: from_date, to_date
 sGetFailedCeleryTaskBtw :: S.Statement (LocalTime, LocalTime) (Vec.Vector CeleryTaskmeta)
 sGetFailedCeleryTaskBtw =
-  let s =
-        "select task_id, date_done, \
-        \(regexp_matches(traceback, '([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})'))[1] as ip_address \
-        \from celery_taskmeta \
-        \where status = 'FAILURE' and date_done between $1 and $2"
+  let s = sqlFailedCeleryTask <> "and date_done between $1 and $2"
       e = contrazip2 eParamTimeStamp eParamTimeStamp
       d = D.rowVector $ dRowCeleryTaskmeta
    in S.Statement s e d True
@@ -235,13 +188,83 @@ sGetFailedCeleryTaskFrom =
       d = D.rowVector $ dRowCeleryTaskmeta
    in S.Statement s e d True
 
+-- statement: date
+sGetFailedCeleryTaskIn :: S.Statement LocalTime (Vec.Vector CeleryTaskmeta)
+sGetFailedCeleryTaskIn =
+  let s = sqlFailedCeleryTask <> "and date_done between $1 and $1 + interval '1 day'"
+      e = eParamTimeStamp
+      d = D.rowVector $ dRowCeleryTaskmeta
+   in S.Statement s e d True
+
+-- statement: n
+sGetFailedCeleryTaskPrevN :: S.Statement Int32 (Vec.Vector CeleryTaskmeta)
+sGetFailedCeleryTaskPrevN =
+  let s =
+        sqlWithPrevNDays
+          <> sqlFailedCeleryTask
+          <> "and date_done >= (select date_before_n from date_before_n)"
+      e = eParamI32
+      d = D.rowVector $ dRowCeleryTaskmeta
+   in S.Statement s e d True
+
+----------------------------------------------------------------------------------------------------
+-- TaskInstance
+
+-- statement: dag_id, run_id, task_id -> Maybe<TaskInstance>
+-- sGetTaskInstance :: S.Statement (Text, Text, Text) (Maybe TaskInstance)
+-- sGetTaskInstance =
+--   let s = sqlTaskInstance <> "where dag_id = $1 and run_id = $2 and task_id = $3"
+--       e = contrazip3 eParamText eParamText eParamText
+--       d = D.rowMaybe dRowTaskInstance
+--    in S.Statement s e d True
+
+-- statement: dag_id, [run_id], Maybe [task_id], Maybe [TaskState]
+mkSGetTaskInstances :: (Maybe [Text], Maybe [Text]) -> S.Statement (Text, [Text], Maybe [Text], Maybe [Text]) (Vec.Vector TaskInstance)
+mkSGetTaskInstances (taskIds, states) = do
+  let sqlBase = sqlTaskInstance <> "where dag_id = $1 and run_id = any ($2) "
+      cond1 = if isNothing taskIds then "" else "and task_id = any ($3) "
+      cond2 = if isNothing states then "" else "and state = any ($4) "
+      finalSql = sqlBase <> cond1 <> cond2
+      e = contrazip4 eParamText eParamListText eParamMListText eParamMListText
+      d = D.rowVector dRowTaskInstance
+   in S.Statement finalSql e d True
+
+----------------------------------------------------------------------------------------------------
+-- TradeDayRunIds
+
+-- statement: dag_id, from_date
+sGetFromTradeDayRunIds :: S.Statement (Text, UTCTime) (Vec.Vector (Text, Text))
+sGetFromTradeDayRunIds =
+  let s = sqlGetFromTradeDayRunIds
+      e = contrazip2 eParamText eParamTimeStamptz
+      d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
+   in S.Statement s e d True
+
+-- statement: dag_id, from_date, to_date
+sGetFromToTradeDayRunIds :: S.Statement (Text, UTCTime, UTCTime) (Vec.Vector (Text, Text))
+sGetFromToTradeDayRunIds =
+  let s = sqlGetFromToTradeDayRunIds
+      e = contrazip3 eParamText eParamTimeStamptz eParamTimeStamptz
+      d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
+   in S.Statement s e d True
+
+-- statement: dag_id, date
+sGetIsTradeDayRunIds :: S.Statement (Text, UTCTime) (Vec.Vector (Text, Text))
+sGetIsTradeDayRunIds =
+  let s = sqlGetIsTradeDayRunIds
+      e = contrazip2 eParamText eParamTimeStamptz
+      d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
+   in S.Statement s e d True
+
 -- statement: dag_id, n
-sGetLastNTradeDaysRunId :: S.Statement (Text, Int32) (Vec.Vector (Text, Text))
-sGetLastNTradeDaysRunId =
-  let s = sqlGetLastNTradeDaysRunId
+sGetLastNTradeDayRunIds :: S.Statement (Text, Int32) (Vec.Vector (Text, Text))
+sGetLastNTradeDayRunIds =
+  let s = sqlGetLastNTradeDaysRunIds
       e = contrazip2 eParamText eParamI32
       d = D.rowVector $ (,) <$> D.column (D.nonNullable D.text) <*> D.column (D.nonNullable D.text)
    in S.Statement s e d True
+
+-- statement: ReqDagTime
 
 ----------------------------------------------------------------------------------------------------
 
@@ -258,24 +281,67 @@ sqlFailedCeleryTask =
   \from celery_taskmeta \
   \where status = 'FAILURE' "
 
--- TODO
-sqlGetFromTradeDayRunId :: ByteString
-sqlGetFromTradeDayRunId = undefined
+----------------------------------------------------------------------------------------------------
 
--- TODO
-sqlGetFromToTradeDayRunId :: ByteString
-sqlGetFromToTradeDayRunId = undefined
+-- N days
+sqlWithPrevNDays :: ByteString
+sqlWithPrevNDays =
+  "with date_before_n as ( \
+  \   select (current_date - interval '1 day' * $1)::date as date_before_n\
+  \) "
 
-sqlGetLastNTradeDaysRunId :: ByteString
-sqlGetLastNTradeDaysRunId =
-  "with previous_days as ( \
+-- From
+sqlGetFromTradeDayRunIds :: ByteString
+sqlGetFromTradeDayRunIds =
+  "with dates as ( \
+  \SELECT generate_series( \
+  \   $2, \
+  \   current_date, \
+  \   interval '1 day' \
+  \   )::date AS date \
+  \), "
+    <> sqlSelectRunIds
+
+-- From, To
+sqlGetFromToTradeDayRunIds :: ByteString
+sqlGetFromToTradeDayRunIds =
+  "with dates as ( \
+  \SELECT generate_series( \
+  \   $2, \
+  \   $3, \
+  \   interval '1 day' \
+  \   )::date AS date \
+  \), "
+    <> sqlSelectRunIds
+
+-- Date
+sqlGetIsTradeDayRunIds :: ByteString
+sqlGetIsTradeDayRunIds =
+  "with dates as ( \
+  \SELECT generate_series( \
+  \   $2, \
+  \   $2, \
+  \   interval '1 day' \
+  \   )::date AS date \
+  \), "
+    <> sqlSelectRunIds
+
+-- N
+sqlGetLastNTradeDaysRunIds :: ByteString
+sqlGetLastNTradeDaysRunIds =
+  "with dates as ( \
   \select generate_series( \
   \   current_date - interval '1 day' * ($2 - 1), \
   \   current_date, \
   \   interval '1 day' \
   \   )::date as date \
-  \), \
-  \run_ids as ( \
+  \), "
+    <> sqlSelectRunIds
+
+-- from 'dates' to get run_id which is trading date
+sqlSelectRunIds :: ByteString
+sqlSelectRunIds =
+  "run_ids as ( \
   \select run_id from xcom \
   \where \
   \   dag_id = $1 \
@@ -283,7 +349,7 @@ sqlGetLastNTradeDaysRunId =
   \   and key = 'cur_date' \
   \   and convert_from(value, 'UTF8') = any ( \
   \     select '\"' || to_char(date, 'YYYYMMDD') || '\"' \
-  \     from previous_days \
+  \     from dates \
   \   ) \
   \) \
   \select run_id, value \
@@ -299,20 +365,30 @@ sqlGetLastNTradeDaysRunId =
 ----------------------------------------------------------------------------------------------------
 
 -- transaction: dag_id, cur_date, task_id -> T<TaskInstance>
-tGetTaskInstance :: Text -> Text -> Text -> T.Transaction (Maybe TaskInstance)
-tGetTaskInstance dagId curDate taskId = do
-  possibleRunId <- T.statement (dagId, curDate) sGetRunIdFromXCom
-  case possibleRunId of
-    Just runId -> T.statement (dagId, runId, taskId) sGetTaskInstance
-    Nothing -> return Nothing
-
--- transaction: dag_id, cur_date, [state] -> T<Vec<TaskInstance>>
--- tGetTaskInstancesByStates :: Text -> Text -> [TaskState] -> T.Transaction (Vec.Vector TaskInstance)
--- tGetTaskInstancesByStates dagId curDate states = do
+-- tGetTaskInstance :: Text -> Text -> Text -> T.Transaction (Maybe TaskInstance)
+-- tGetTaskInstance dagId curDate taskId = do
 --   possibleRunId <- T.statement (dagId, curDate) sGetRunIdFromXCom
 --   case possibleRunId of
---     Just runId -> T.statement (dagId, runId, taskStateToStr <$> states) sGetTaskInstancesByStates
---     Nothing -> return Vec.empty
+--     Just runId -> T.statement (dagId, runId, taskId) sGetTaskInstance
+--     Nothing -> return Nothing
+
+-- transaction: ReqTaskInstance -> T<Vec<TaskInstance>>
+tGetTaskInstances :: ReqTaskInstance -> T.Transaction (Vec.Vector TaskInstance)
+tGetTaskInstances (ReqTaskInstance dagId reqTime taskIds taskStates) = do
+  runIds <- case reqTime of
+    LastNDays n -> T.statement (di, fromIntegral n) sGetLastNTradeDayRunIds
+    tp -> case reqTimeToParamT tp of
+      Just (FromTo' s e) -> T.statement (di, s, e) sGetFromToTradeDayRunIds
+      Just (From' s) -> T.statement (di, s) sGetFromTradeDayRunIds
+      Just (Is' d) -> T.statement (di, d) sGetIsTradeDayRunIds
+      Nothing -> pure Vec.empty
+
+  T.statement (di, ri runIds, ti, ts) $ mkSGetTaskInstances (ti, ts)
+  where
+    ri runIds' = Vec.toList $ fst <$> runIds'
+    di = pack dagId
+    ti = (pack <$>) <$> taskIds
+    ts = (taskStateToStr <$>) <$> taskStates
 
 ----------------------------------------------------------------------------------------------------
 -- Helper
@@ -326,6 +402,9 @@ eParamText = E.param $ E.nonNullable E.text
 eParamListText :: E.Params [Text]
 eParamListText = E.param $ E.nonNullable $ E.foldableArray $ E.nonNullable E.text
 
+eParamMListText :: E.Params (Maybe [Text])
+eParamMListText = E.param $ E.nullable $ E.foldableArray $ E.nonNullable E.text
+
 eParamI32 :: E.Params Int32
 eParamI32 = E.param $ E.nonNullable $ E.int4
 
@@ -333,11 +412,16 @@ eParamI32 = E.param $ E.nonNullable $ E.int4
 eParamTimeStamp :: E.Params LocalTime
 eParamTimeStamp = E.param $ E.nonNullable E.timestamp
 
+eParamTimeStamptz :: E.Params UTCTime
+eParamTimeStamptz = E.param $ E.nonNullable E.timestamptz
+
 -- work for XCom value
 -- wrappedTextEncoder :: E.Params Text
 -- wrappedTextEncoder = E.param $ E.nonNullable $ E.enum $ encodeWrappedText
 --   where
 --     encodeWrappedText text = "\"" <> text <> "\""
+
+----------------------------------------------------------------------------------------------------
 
 -- decode TaskInstance
 dRowTaskInstance :: D.Row TaskInstance
@@ -423,10 +507,9 @@ instance ToParamT LocalTime where
 instance ToParamT UTCTime where
   toParamT = parseTimeM True defaultTimeLocale
 
-reqTimeToParamT :: (ToParamT a) => ReqTime -> Maybe (ParamTime' a)
-reqTimeToParamT t =
-  case paramTime t of
-    FromTo s e -> FromTo' <$> toParamT f s <*> toParamT f e
-    From s -> From' <$> toParamT f s
-  where
-    f = timeFmt t
+reqTimeToParamT :: (ToParamT a) => ReqTime -> Maybe (ParamTimeRange' a)
+reqTimeToParamT (TimeRange t f) = case t of
+  FromTo s e -> FromTo' <$> toParamT f s <*> toParamT f e
+  From s -> From' <$> toParamT f s
+  Is d -> Is' <$> toParamT f d
+reqTimeToParamT _ = error "unsupported `ReqTime`"
