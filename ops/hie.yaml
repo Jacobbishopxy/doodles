@@ -29,3 +29,6 @@ cradle:
 
     - path: "test/AfTasks.hs"
       component: "ops:exe:test-af-tasks"
+
+    - path: "test/HttpServerDemo.hs"
+      component: "ops:exe:test-http-server-demo"

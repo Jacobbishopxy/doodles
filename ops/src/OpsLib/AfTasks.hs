@@ -265,8 +265,6 @@ sGetLastNTradeDayRunIds =
       d = D.rowVector dRowRunIds
    in S.Statement s e d True
 
--- statement: ReqDagTime
-
 ----------------------------------------------------------------------------------------------------
 
 sqlTaskInstance :: ByteString
