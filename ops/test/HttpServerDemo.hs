@@ -38,6 +38,9 @@ todosDir = "./todos"
 contentTypeJson :: [(HeaderName, ByteString)]
 contentTypeJson = [("Content-Type", "application/json")]
 
+contentTypeText :: [(HeaderName, ByteString)]
+contentTypeText = [("Content-Type", "application/text")]
+
 -- Helper to create a response
 jsonResponse :: (ToJSON a) => Status -> a -> Response
 jsonResponse status msg = responseLBS status contentTypeJson (encode msg)
@@ -86,13 +89,13 @@ app request respond =
       let tId = read $ unpack todoIdText
       fileExists <- doesFileExist $ todosDir <> "/" <> show tId <> ".json"
       if fileExists
-        then deleteTodo tId >> respond (responseLBS status204 contentTypeJson "")
+        then deleteTodo tId >> respond (responseLBS status204 contentTypeText "")
         else respond $ jsonResponse status404 ("Todo not found" :: Text)
     ("DELETE", ["todos"]) ->
       listDirectory todosDir
         >>= mapM_ (removeFile . ((todosDir <> "/") <>))
-        >> respond (responseLBS status204 [("Content-Type", "application/json")] "")
-    _ -> respond $ responseLBS status405 contentTypeJson "Method Not Allowed"
+        >> respond (responseLBS status204 contentTypeText "")
+    _ -> respond $ responseLBS status405 contentTypeText "Method Not Allowed"
 
 -- Ensure to todos directory exists
 createDirIfMissing :: IO ()

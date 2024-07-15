@@ -39,7 +39,7 @@ main = do
 
   -- get task task instances
   let reqT = mkReqLastN 5
-      reqTi = mkReqTaskInstance "cronjob_monitor" reqT Nothing (Just [TsFailed])
+      reqTi = mkReqTaskInstance "telnet_check" reqT Nothing (Just [TsFailed])
   res1 <- R.run (getTaskInstance reqTi) connection
   print res1
 
