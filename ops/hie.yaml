@@ -32,3 +32,9 @@ cradle:
 
     - path: "test/HttpServerDemo.hs"
       component: "ops:exe:test-http-server-demo"
+
+    - path: "test/SwaggerDemo.hs"
+      component: "ops:exe:test-swagger-demo"
+
+    - path: "test/SwaggerApi.hs"
+      component: "ops:exe:test-swagger-demo"
