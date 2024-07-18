@@ -180,6 +180,7 @@ executable test-swagger-demo
   build-depends:
     , aeson
     , base
+    , containers
     , lens
     , servant
     , servant-server
