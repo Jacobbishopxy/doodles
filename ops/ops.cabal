@@ -176,12 +176,14 @@ executable test-swagger-demo
   default-language: Haskell2010
   hs-source-dirs:   test
   main-is:          SwaggerDemo.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   other-modules:    SwaggerApi
   build-depends:
     , aeson
     , base
     , containers
     , lens
+    , process
     , servant
     , servant-server
     , servant-swagger

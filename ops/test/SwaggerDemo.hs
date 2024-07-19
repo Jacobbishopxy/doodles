@@ -12,43 +12,103 @@ module Main where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef
-import Data.Map
-import Data.Swagger
+import qualified Data.Map as Map
 import Data.Time
+import GHC.IO.Handle (Handle)
 import Network.Wai
 import Network.Wai.Handler.Warp (run)
 import Servant
 import Servant.Swagger.UI
 import SwaggerApi
+import System.Info (os)
+import System.Process (ProcessHandle, createProcess, shell)
 
 ----------------------------------------------------------------------------------------------------
 
 getTime :: Handler String
 getTime = liftIO getCurrentTime >>= return . formatTime defaultTimeLocale "%FT%T%QZ"
 
-type TodoStore = Map TodoId Todo
+-- incremental id, mapping of id to `Todo`
+type TodoStore = (Int, Map.Map TodoId Todo)
 
-getTodos :: IORef TodoStore -> Handler [Todo]
-getTodos = undefined
+initTodoStore :: IO (IORef TodoStore)
+initTodoStore = newIORef (0, Map.empty)
+
+getAllTodo :: IORef TodoStore -> Handler [Todo]
+getAllTodo rf =
+  liftIO (readIORef rf) >>= \ts ->
+    return $ (\(_, v) -> v) <$> (Map.toList $ snd ts)
 
 getTodo :: IORef TodoStore -> TodoId -> Handler Todo
-getTodo = undefined
+getTodo rf i =
+  liftIO (readIORef rf) >>= \ts ->
+    case Map.lookup i (snd ts) of
+      Just t -> return t
+      Nothing -> throwError $ err404 {errBody = "todo not found"}
 
-postTodo :: IORef TodoStore -> TodoId -> Handler TodoId
-postTodo = undefined
+postTodo :: IORef TodoStore -> Todo -> Handler TodoId
+postTodo rf t = do
+  newT <- liftIO $ mkNewTodo t
+  liftIO $ atomicModifyIORef rf $ \(i, m) ->
+    let newI = i + 1
+        newId = TodoId newI
+        newM = Map.insert newId newT m
+        newTs = (newI, newM)
+     in (newTs, newId)
 
 putTodo :: IORef TodoStore -> TodoId -> Todo -> Handler Todo
-putTodo = undefined
+putTodo rf i t = do
+  liftIO (readIORef rf) >>= \ts ->
+    case Map.lookup i (snd ts) of
+      Just oldTodo -> do
+        updatedTodo <- liftIO $ modifyTodo t oldTodo
+        liftIO $ atomicModifyIORef rf $ \(index, m) ->
+          let newMap = Map.insert i updatedTodo m
+           in ((index, newMap), ())
+        return updatedTodo
+      Nothing -> throwError $ err404 {errBody = "todo not found"}
 
 deleteTodo :: IORef TodoStore -> TodoId -> Handler Todo
-deleteTodo = undefined
+deleteTodo rf i = do
+  liftIO (readIORef rf) >>= \ts ->
+    case Map.lookup i (snd ts) of
+      Just t -> do
+        liftIO $ atomicModifyIORef rf $ \(index, m) ->
+          let newMap = Map.delete i m
+           in ((index, newMap), ())
+        return t
+      Nothing -> throwError $ err404 {errBody = "todo not found"}
 
 ----------------------------------------------------------------------------------------------------
 
-todoServer :: Server TodoAPI
-todoServer = undefined
+todoServer :: IORef TodoStore -> Server TodoAPI
+todoServer ref =
+  getTime
+    :<|> getAllTodo ref
+    :<|> getTodo ref
+    :<|> postTodo ref
+    :<|> putTodo ref
+    :<|> deleteTodo ref
+
+server :: IORef TodoStore -> Server API
+server ref = swaggerSchemaUIServer swaggerDoc :<|> todoServer ref
+
+app :: IORef TodoStore -> Application
+app ref = serve api (server ref)
+
+launch :: Int -> IO (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
+launch p =
+  case os of
+    "mingw32" -> createProcess (shell $ "start " ++ u)
+    "darwin" -> createProcess (shell $ "open " ++ u)
+    _ -> createProcess (shell $ "xdg-open " ++ u)
+  where
+    u = "http://localhost:" <> show p <> "/swagger-ui"
 
 main :: IO ()
 main = do
   let p = 8080 :: Int
   putStrLn $ "Starting server on port " <> show p
+  ref <- initTodoStore
+  _ <- launch p
+  run p (app ref)

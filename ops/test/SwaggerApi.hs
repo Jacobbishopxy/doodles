@@ -14,12 +14,13 @@ module SwaggerApi where
 import Control.Lens
 import Data.Aeson (FromJSON, ToJSON, toJSON)
 import Data.Swagger
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import Data.Time (UTCTime (UTCTime), fromGregorian, getCurrentTime)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 import Servant
 import Servant.Swagger
+import Servant.Swagger.UI
 
 todoAPI :: Proxy TodoAPI
 todoAPI = Proxy
@@ -47,10 +48,7 @@ type TodoAPI =
       :> Capture "id" TodoId
       :> Delete '[JSON] Todo
 
-type SwapperAPI =
-  "swagger.json" :> Get '[JSON] Swagger
-
-type API = SwapperAPI :<|> TodoAPI
+type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> TodoAPI
 
 data Todo = Todo
   { brief :: Text,
@@ -68,13 +66,23 @@ instance ToSchema Todo where
       & mapped . schema . example ?~ toJSON mockTodo
 
 newtype TodoId = TodoId Int
-  deriving (Show, Generic, Typeable, ToJSON, ToParamSchema, ToSchema)
+  deriving (Show, Eq, Ord, Generic, Typeable, ToJSON, ToParamSchema, ToSchema)
+
+instance FromHttpApiData TodoId where
+  parseUrlPiece txt =
+    case reads (unpack txt) of
+      [(i, "")] -> Right (TodoId i)
+      _ -> Left "Failed to parse TodoId"
 
 newTodo :: Text -> Text -> Int -> IO Todo
-newTodo b c p = do
-  t <- getCurrentTime
-  let t' = Just t
-  return $ Todo b c p t' t'
+newTodo b c p =
+  getCurrentTime >>= \tm ->
+    return $ Todo b c p (Just tm) (Just tm)
+
+mkNewTodo :: Todo -> IO Todo
+mkNewTodo t =
+  getCurrentTime >>= \tm ->
+    return $ t {created = Just tm, modified = Just tm}
 
 mockTodo :: Todo
 mockTodo =
@@ -95,16 +103,13 @@ modifyTodo newT todo = do
 
 ----------------------------------------------------------------------------------------------------
 
-todoSwagger :: Swagger
-todoSwagger =
+swaggerDoc :: Swagger
+swaggerDoc =
   toSwagger todoAPI
     & info . title .~ "Todo API"
     & info . version .~ "0.0.1"
     & info . description ?~ "This is an API that tests swagger integration"
     & info . license ?~ ("BSD 3.0" & url ?~ URL "https://opensource.org/licenses/BSD-3-Clause")
-
-swaggerServer :: Server API
-swaggerServer = return todoSwagger :<|> error "not implemented"
 
 api :: Proxy API
 api = Proxy
