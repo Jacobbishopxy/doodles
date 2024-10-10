@@ -35,7 +35,7 @@ simpleExec s =
 -- `statement` 通过 `Statement` 与入参创建一个 `Session`；
 -- `run` 在提供的连接上，执行一批命令（statements）
 cleanUp :: C.Connection -> IO (Either R.SessionError ())
-cleanUp connection = R.run cleanUpSession connection
+cleanUp = R.run cleanUpSession
   where
     cleanUpSession :: R.Session ()
     cleanUpSession = R.statement () cleanUpStatement

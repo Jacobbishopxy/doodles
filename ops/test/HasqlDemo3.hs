@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 -- file: HasqlDemo3.hs
 -- author: Jacob Xie
@@ -11,7 +10,7 @@ module Main where
 import Contravariant.Extras (contrazip2)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (SomeException, bracket, try)
-import Control.Monad (join, replicateM_)
+import Control.Monad (replicateM_)
 import Data.Int (Int64)
 import Data.Scientific (Scientific)
 import Debug.Trace (traceShowM)
@@ -157,7 +156,8 @@ main = bracket mAcquire mRelease mUse
 mAcquire :: IO (C.Connection, C.Connection)
 mAcquire = (,) <$> acq <*> acq
   where
-    acq = join $ fmap (either (fail . show) return) $ C.acquire cfg
+    -- acq = join $ fmap (either (fail . show) return) $ C.acquire cfg
+    acq = either (fail . show) return =<< C.acquire cfg
     cfg = C.settings "localhost" 5432 "postgres" "1" "postgres"
 
 mRelease :: (C.Connection, C.Connection) -> IO ()

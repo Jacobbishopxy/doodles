@@ -109,10 +109,10 @@ mkReqIs :: String -> String -> ReqTime
 mkReqIs fmt s = TimeRange (Is s) fmt
 
 mkReqLastN :: Int -> ReqTime
-mkReqLastN n = LastNDays n
+mkReqLastN = LastNDays
 
 mkReqTaskInstance :: String -> ReqTime -> Maybe [String] -> Maybe [TaskState] -> ReqTaskInstance
-mkReqTaskInstance dagId reqTime taskIds states = ReqTaskInstance dagId reqTime taskIds states
+mkReqTaskInstance = ReqTaskInstance
 
 ----------------------------------------------------------------------------------------------------
 -- private DATs

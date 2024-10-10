@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators #-}
 
 -- file: SwaggerDemo.hs
 -- author: Jacob Xie
@@ -11,22 +9,40 @@
 module Main where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.IORef
+import Data.Functor ((<&>))
+import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
 import qualified Data.Map as Map
-import Data.Time
+import Data.Time (defaultTimeLocale, formatTime, getCurrentTime)
 import GHC.IO.Handle (Handle)
-import Network.Wai
 import Network.Wai.Handler.Warp (run)
 import Servant
-import Servant.Swagger.UI
+  ( Application,
+    Handler,
+    Server,
+    ServerError (errBody),
+    err404,
+    serve,
+    throwError,
+    (:<|>) ((:<|>)),
+  )
+import Servant.Swagger.UI (swaggerSchemaUIServer)
 import SwaggerApi
+  ( API,
+    Todo,
+    TodoAPI,
+    TodoId (..),
+    api,
+    mkNewTodo,
+    modifyTodo,
+    swaggerDoc,
+  )
 import System.Info (os)
 import System.Process (ProcessHandle, createProcess, shell)
 
 ----------------------------------------------------------------------------------------------------
 
 getTime :: Handler String
-getTime = liftIO getCurrentTime >>= return . formatTime defaultTimeLocale "%FT%T%QZ"
+getTime = liftIO getCurrentTime <&> formatTime defaultTimeLocale "%FT%T%QZ"
 
 -- incremental id, mapping of id to `Todo`
 type TodoStore = (Int, Map.Map TodoId Todo)
@@ -37,7 +53,7 @@ initTodoStore = newIORef (0, Map.empty)
 getAllTodo :: IORef TodoStore -> Handler [Todo]
 getAllTodo rf =
   liftIO (readIORef rf) >>= \ts ->
-    return $ (\(_, v) -> v) <$> (Map.toList $ snd ts)
+    return $ snd <$> Map.toList (snd ts)
 
 getTodo :: IORef TodoStore -> TodoId -> Handler Todo
 getTodo rf i =

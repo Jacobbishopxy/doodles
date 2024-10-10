@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use newtype instead of data" #-}
 
 -- file: DisplayerList.hs
 -- author: Jacob Xie
@@ -128,12 +131,10 @@ handleEvent (VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) = do
 handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [V.MCtrl])) = do
   l <- use outputDisplay
   focusRing %= F.focusSetCurrent CmdRegion
-  if length l == 1
-    then return ()
-    else (modify $ outputDisplay %~ recedeODip)
+  unless (length l == 1) (modify $ outputDisplay %~ recedeODip)
 
 -- move down to the next displayer
-handleEvent (VtyEvent (V.EvKey (V.KDown) [V.MCtrl])) = do
+handleEvent (VtyEvent (V.EvKey V.KDown [V.MCtrl])) = do
   r <- use focusRing
   m <- use outputDisplay
   case F.focusGetCurrent r of
@@ -141,7 +142,7 @@ handleEvent (VtyEvent (V.EvKey (V.KDown) [V.MCtrl])) = do
     _ -> return ()
 
 -- move up to the previous displayer
-handleEvent (VtyEvent (V.EvKey (V.KUp) [V.MCtrl])) = do
+handleEvent (VtyEvent (V.EvKey V.KUp [V.MCtrl])) = do
   r <- use focusRing
   m <- use outputDisplay
   case F.focusGetCurrent r of
